@@ -880,7 +880,7 @@ export interface SavedItem<ID, T> {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class SqlSavedRepository {
-  constructor(protected db: DB, protected table: string, protected userId: string, protected id: string, protected saveAt: string) {
+  constructor(protected db: MinDB, protected table: string, protected userId: string, protected id: string, protected saveAt: string) {
     this.isSaved = this.isSaved.bind(this)
     this.save = this.save.bind(this)
     this.remove = this.remove.bind(this)
