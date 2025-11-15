@@ -1,6 +1,6 @@
 import {Pool, PoolClient, QueryResult, QueryResultRow} from 'pg';
 import {buildToSave, buildToSaveBatch, param} from './build';
-import {Attribute, Attributes, Manager, Statement, StringMap} from './metadata';
+import {Attribute, Attributes, DB, Manager, Statement, StringMap} from './metadata';
 
 export * from './metadata';
 export * from './build';
@@ -877,6 +877,37 @@ export function useUrlQuery<ID>(queryF: <T>(sql: string, args?: any[]) => Promis
 export interface SavedItem<ID, T> {
   id: ID;
   items: T[];
+}
+// tslint:disable-next-line:max-classes-per-file
+export class SqlSavedRepository {
+  constructor(protected db: DB, protected table: string, protected userId: string, protected id: string, protected saveAt: string) {
+    this.isSaved = this.isSaved.bind(this)
+    this.save = this.save.bind(this)
+    this.remove = this.remove.bind(this)
+    this.count = this.count.bind(this)
+  }
+  isSaved(userId: string, id: string): Promise<boolean> {
+    const sql = `select ${this.userId} from ${this.table} where ${this.userId} = ${this.db.param(1)} and ${this.id} = ${this.db.param(2)}`
+    return this.db.query<any>(sql, [userId, id]).then((rows) => {
+      return rows.length > 0 ? true : false
+    })
+  }
+  save(userId: string, id: string): Promise<number> {
+    const sql = `insert into ${this.table} (${this.userId}, ${this.id}, ${this.saveAt})
+    values (${this.db.param(1)}, ${this.db.param(2)}, ${this.db.param(3)})
+    on conflict (${this.userId}, ${this.id}) do nothing`
+    return this.db.exec(sql, [userId, id, new Date()])
+  }
+  remove(userId: string, id: string): Promise<number> {
+    const sql = `delete from ${this.table} where ${this.userId} = ${this.db.param(1)} and ${this.id} = ${this.db.param(2)}`
+    return this.db.exec(sql, [userId, id])
+  }
+  count(userId: string): Promise<number> {
+    const sql = `select count(*) as total from ${this.table} where ${this.userId} = ${this.db.param(1)}`
+    return this.db.query<any>(sql, [userId]).then((rows) => {
+      return rows[0]["total"] as number
+    })
+  }
 }
 // tslint:disable-next-line:max-classes-per-file
 export class ArrayRepository<ID, T> {
