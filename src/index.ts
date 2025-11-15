@@ -893,9 +893,7 @@ export class SqlSavedRepository {
     })
   }
   save(userId: string, id: string): Promise<number> {
-    const sql = `insert into ${this.table} (${this.userId}, ${this.id}, ${this.saveAt})
-    values (${this.db.param(1)}, ${this.db.param(2)}, ${this.db.param(3)})
-    on conflict (${this.userId}, ${this.id}) do nothing`
+    const sql = `insert into ${this.table} (${this.userId}, ${this.id}, ${this.saveAt}) values (${this.db.param(1)}, ${this.db.param(2)}, ${this.db.param(3)}) on conflict (${this.userId}, ${this.id}) do nothing`
     return this.db.exec(sql, [userId, id, new Date()])
   }
   remove(userId: string, id: string): Promise<number> {
