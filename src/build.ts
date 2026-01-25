@@ -58,7 +58,7 @@ export function metadata(attrs: Attributes): Metadata {
   }
   return m;
 }
-export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Statement|undefined {
+export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Statement {
   if (!i) {
     i = 1;
   }
@@ -127,7 +127,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
   }
   if (pks.length === 0) {
     if (cols.length === 0) {
-      return undefined;
+      return { query: "", params: args };
     } else {
       const q = `insert into ${table}(${cols.join(',')})values(${values.join(',')})`;
       return { query: q, params: args };

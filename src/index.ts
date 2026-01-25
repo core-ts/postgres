@@ -280,7 +280,7 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
 
 export function save<T>(client: Query|((sql: string, args?: any[]) => Promise<number>), obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
   const s = buildToSave(obj, table, attrs, ver, buildParam);
-  if (!s) {
+  if (s.query.length === 0) {
     return Promise.resolve(-1);
   }
   if (typeof client === 'function') {
@@ -529,7 +529,7 @@ export class PostgreSQLWriter<T> {
       obj2 = this.map(obj);
     }
     const stmt = buildToSave(obj2, this.table, this.attributes, this.version, this.param);
-    if (stmt) {
+    if (stmt.query.length > 0) {
       if (this.exec) {
         if (this.oneIfSuccess) {
           return this.exec(stmt.query, stmt.params).then(ct => ct > 0 ? 1 : 0);
