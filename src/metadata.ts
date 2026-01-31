@@ -1,30 +1,30 @@
 export interface StringMap {
-  [key: string]: string;
+  [key: string]: string
 }
 export interface Statement {
-  query: string;
-  params?: any[];
+  query: string
+  params?: any[]
 }
 
 export interface Manager {
-  driver: string;
-  param(i: number): string;
-  exec(sql: string, args?: any[], ctx?: any): Promise<number>;
-  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>;
-  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>;
-  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T|null>;
-  execScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T>;
-  count(sql: string, args?: any[], ctx?: any): Promise<number>;
+  driver: string
+  param(i: number): string
+  exec(sql: string, args?: any[], ctx?: any): Promise<number>
+  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
+  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T | null>
+  execScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T>
+  count(sql: string, args?: any[], ctx?: any): Promise<number>
 }
 export interface DB {
-  driver: string;
-  param(i: number): string;
-  exec(sql: string, args?: any[], ctx?: any): Promise<number>;
-  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>;
-  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>;
-  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T|null>;
-  execScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T>;
-  count(sql: string, args?: any[], ctx?: any): Promise<number>;
+  driver: string
+  param(i: number): string
+  exec(sql: string, args?: any[], ctx?: any): Promise<number>
+  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
+  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T | null>
+  execScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T>
+  count(sql: string, args?: any[], ctx?: any): Promise<number>
 }
 export interface MinDB {
   driver: string
@@ -33,10 +33,27 @@ export interface MinDB {
   execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
 }
-export type DataType = 'ObjectId' | 'date' | 'datetime' | 'time'
-  | 'boolean' | 'number' | 'integer' | 'string' | 'text'
-  | 'object' | 'array' | 'binary'
-  | 'primitives' | 'booleans' | 'numbers' | 'integers' | 'strings' | 'dates' | 'datetimes' | 'times';
+export type DataType =
+  | "ObjectId"
+  | "date"
+  | "datetime"
+  | "time"
+  | "boolean"
+  | "number"
+  | "integer"
+  | "string"
+  | "text"
+  | "object"
+  | "array"
+  | "binary"
+  | "primitives"
+  | "booleans"
+  | "numbers"
+  | "integers"
+  | "strings"
+  | "dates"
+  | "datetimes"
+  | "times"
 
 export interface Attribute {
   name?: string
@@ -52,5 +69,5 @@ export interface Attribute {
   false?: string | number
 }
 export interface Attributes {
-  [key: string]: Attribute;
+  [key: string]: Attribute
 }
