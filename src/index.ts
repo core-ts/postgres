@@ -1,6 +1,6 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg"
 import { buildToSave, buildToSaveBatch, param } from "./build"
-import { Attribute, Attributes, Manager, Statement, StringMap } from "./metadata"
+import { Attribute, Attributes, DB, Statement, StringMap, Transaction } from "./metadata"
 
 export * from "./build"
 export * from "./metadata"
@@ -28,7 +28,7 @@ export function createPool(conf: Config): Pool {
   return pool
 }
 // tslint:disable-next-line:max-classes-per-file
-export class PoolManager implements Manager {
+export class PoolManager implements DB {
   constructor(public pool: Pool) {
     this.param = this.param.bind(this)
     this.exec = this.exec.bind(this)
@@ -41,6 +41,12 @@ export class PoolManager implements Manager {
   driver = "postgres"
   param(i: number): string {
     return "$" + i
+  }
+  async beginTransaction(): Promise<Transaction> {
+    const client = await this.pool.connect()
+    await client.query("begin")
+    const clientManager = new PoolClientManager(client)
+    return clientManager
   }
   exec(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.pool
@@ -68,7 +74,7 @@ export class PoolManager implements Manager {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class PoolClientManager implements Manager {
+export class PoolClientManager implements Transaction {
   constructor(public client: PoolClient) {
     this.param = this.param.bind(this)
     this.exec = this.exec.bind(this)
@@ -81,6 +87,24 @@ export class PoolClientManager implements Manager {
   driver = "postgres"
   param(i: number): string {
     return "$" + i
+  }
+  async commit(): Promise<void> {
+    await this.client.query("commit")
+    this.client.release()
+  }
+  async rollback(): Promise<void> {
+    await this.client.query("rollback")
+    this.client.release()
+  }
+  async end(): Promise<void> {
+    try {
+      await this.client.query("commit")
+      this.client.release()
+    } catch (e) {
+      await this.client.query("rollback")
+      this.client.release()
+      throw e
+    }
   }
   exec(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.client
@@ -220,7 +244,7 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
     }
   }
 }
-export async function execBatchWithClient(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export async function execBatchWithClientTx(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
@@ -277,7 +301,46 @@ export async function execBatchWithClient(client: PoolClient, statements: Statem
     }
   }
 }
-
+export async function execBatchWithClient(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+  if (!statements || statements.length === 0) {
+    return Promise.resolve(0)
+  } else if (statements.length === 1) {
+    return exec(client, statements[0].query, statements[0].params)
+  }
+  let c = 0
+  if (firstSuccess) {
+    const result0 = await client.query(statements[0].query, toArray(statements[0].params))
+    if (result0 && result0.rowCount !== 0) {
+      const subs = statements.slice(1)
+      const arrPromise = subs.map((item, i) => {
+        return client.query(item.query, item.params ? item.params : [])
+      })
+      await Promise.all(arrPromise).then((results) => {
+        for (const obj of results) {
+          if (obj.rowCount) {
+            c += obj.rowCount
+          }
+        }
+      })
+      if (result0.rowCount) {
+        c += result0.rowCount
+      }
+    }
+    return c
+  } else {
+    const arrPromise = statements.map((item, i) => {
+      return client.query(item.query, toArray(item.params))
+    })
+    await Promise.all(arrPromise).then((results) => {
+      for (const obj of results) {
+        if (obj.rowCount) {
+          c += obj.rowCount
+        }
+      }
+    })
+    return c
+  }
+}
 export function save<T>(
   client: Query | ((sql: string, args?: any[]) => Promise<number>),
   obj: T,
@@ -316,7 +379,7 @@ export function saveBatchWithClient<T>(
   if (!s) {
     return Promise.resolve(-1)
   } else {
-    return execBatchWithClient(client, s)
+    return execBatchWithClientTx(client, s)
   }
 }
 
