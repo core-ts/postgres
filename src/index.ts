@@ -560,7 +560,7 @@ export class StringRepository {
       arr.push('($' + i + ')');
     }
     const s = `insert into ${this.table}(${this.column})values${arr.join(',')} on conflict do nothing`;
-    return exec(this.pool, s, values);
+    return execute(this.pool, s, values);
   }
 }
 */
@@ -579,7 +579,7 @@ export function version(attrs: Attributes): Attribute | undefined {
 export class PostgreSQLWriter<T> {
   pool?: Pool
   version?: string
-  exec?: (sql: string, args?: any[]) => Promise<number>
+  execute?: (sql: string, args?: any[]) => Promise<number>
   map?: (v: T) => T
   param?: (i: number) => string
   constructor(
@@ -592,7 +592,7 @@ export class PostgreSQLWriter<T> {
   ) {
     this.write = this.write.bind(this)
     if (typeof pool === "function") {
-      this.exec = pool
+      this.execute = pool
     } else {
       this.pool = pool
     }
@@ -613,11 +613,11 @@ export class PostgreSQLWriter<T> {
     }
     const stmt = buildToSave(obj2, this.table, this.attributes, this.version, this.param)
     if (stmt.query.length > 0) {
-      if (this.exec) {
+      if (this.execute) {
         if (this.oneIfSuccess) {
-          return this.exec(stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
+          return this.execute(stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
         } else {
-          return this.exec(stmt.query, stmt.params)
+          return this.execute(stmt.query, stmt.params)
         }
       } else {
         if (this.oneIfSuccess) {
@@ -637,7 +637,7 @@ export class PostgreSQLStreamWriter<T> {
   size = 0
   pool?: Pool
   version?: string
-  execBatch?: (statements: Statement[]) => Promise<number>
+  executeBatch?: (statements: Statement[]) => Promise<number>
   map?: (v: T) => T
   param?: (i: number) => string
   constructor(
@@ -651,7 +651,7 @@ export class PostgreSQLStreamWriter<T> {
     this.write = this.write.bind(this)
     this.flush = this.flush.bind(this)
     if (typeof con === "function") {
-      this.execBatch = con
+      this.executeBatch = con
     } else {
       this.pool = con
     }
@@ -689,8 +689,8 @@ export class PostgreSQLStreamWriter<T> {
       const total = this.list.length
       const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.version, this.param)
       if (stmt) {
-        if (this.execBatch) {
-          return this.execBatch(stmt).then((r) => {
+        if (this.executeBatch) {
+          return this.executeBatch(stmt).then((r) => {
             this.list = []
             return total
           })
@@ -821,18 +821,18 @@ function promiseTimeOut(timeoutInMilliseconds: number, promise: Promise<any>): P
 // tslint:disable-next-line:max-classes-per-file
 export class StringService {
   constructor(
-    public table: string,
-    public field: string,
+    protected table: string,
+    protected field: string,
     queryData: <T>(sql: string, args?: any[]) => Promise<T[]>,
     execute: (sql: string, args?: any[]) => Promise<number>,
   ) {
     this.query = queryData
-    this.exec = execute
+    this.execute = execute
     this.load = this.load.bind(this)
     this.save = this.save.bind(this)
   }
-  query: <T>(sql: string, args?: any[]) => Promise<T[]>
-  exec: (sql: string, args?: any[]) => Promise<number>
+  protected query: <T>(sql: string, args?: any[]) => Promise<T[]>
+  protected execute: (sql: string, args?: any[]) => Promise<number>
   load(keyword: string, max?: number): Promise<string[]> {
     const m = max && max > 0 ? max : 20
     const k = keyword + "%"
@@ -857,7 +857,7 @@ export class StringService {
         return Promise.resolve(0)
       } else {
         const sql = `insert into ${this.table}(${this.field}) values ${arr.join(",")} on conflict(${this.field}) do nothing`
-        return this.exec(sql, ps)
+        return this.execute(sql, ps)
       }
     }
   }
@@ -866,7 +866,7 @@ export const StringRepository = StringService
 
 export interface MinDB {
   param(i: number): string
-  exec(sql: string, args?: any[], ctx?: any): Promise<number>
+  execute(sql: string, args?: any[], ctx?: any): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap): Promise<T[]>
 }
 export interface Passcode {
@@ -898,7 +898,7 @@ export class CodeRepository<ID> {
       values (${this.db.param(1)}, ${this.db.param(2)}, ${this.db.param(3)})
       on conflict (${this.id})
       do update set ${this.code} = ${this.db.param(4)}, ${this.expiredAt} = ${this.db.param(5)}`
-    return this.db.exec(sql, [id, passcode, expiredAt, passcode, expiredAt])
+    return this.db.execute(sql, [id, passcode, expiredAt, passcode, expiredAt])
   }
   load(id: ID): Promise<Passcode | null | undefined> {
     const sql = `select ${this.code} as code, ${this.expiredAt} as expiredat from ${this.table} where ${this.id} = ${this.db.param(1)}`
@@ -915,7 +915,7 @@ export class CodeRepository<ID> {
   }
   delete(id: ID): Promise<number> {
     const sql = `delete from ${this.table} where ${this.id} = ${this.db.param(1)}`
-    return this.db.exec(sql, [id])
+    return this.db.execute(sql, [id])
   }
 }
 // tslint:disable-next-line:max-classes-per-file
@@ -1019,11 +1019,11 @@ export class SqlSavedRepository {
   }
   save(userId: string, id: string): Promise<number> {
     const sql = `insert into ${this.table} (${this.userId}, ${this.id}, ${this.saveAt}) values (${this.db.param(1)}, ${this.db.param(2)}, ${this.db.param(3)}) on conflict (${this.userId}, ${this.id}) do nothing`
-    return this.db.exec(sql, [userId, id, new Date()])
+    return this.db.execute(sql, [userId, id, new Date()])
   }
   remove(userId: string, id: string): Promise<number> {
     const sql = `delete from ${this.table} where ${this.userId} = ${this.db.param(1)} and ${this.id} = ${this.db.param(2)}`
-    return this.db.exec(sql, [userId, id])
+    return this.db.execute(sql, [userId, id])
   }
   count(userId: string): Promise<number> {
     const sql = `select count(*) as total from ${this.table} where ${this.userId} = ${this.db.param(1)}`
@@ -1154,7 +1154,7 @@ export interface Reaction {
   reaction: number
 }
 export interface DB2 {
-  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
+  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
 }
 // tslint:disable-next-line:max-classes-per-file
@@ -1190,14 +1190,14 @@ export class ReactionService<ID> {
           on conflict (${this.id}) do update set ${this.prefix}1${this.suffix} = ${this.userinfoTable}.${this.prefix}1${this.suffix} + ${obj["l1"]}, ${this.prefix}2${this.suffix} = ${this.userinfoTable}.${this.prefix}2${this.suffix} + ${obj["l2"]}, ${this.prefix}3${this.suffix} = ${this.userinfoTable}.${this.prefix}3${this.suffix} + ${obj["l3"]}, ${this.reactioncount}=${this.reactioncount} + 1`
         const s1: Statement = { query: query1, params: [id, author, reaction] }
         const s2: Statement = { query: query2, params: [id] }
-        return this.db.execBatch([s1, s2])
+        return this.db.executeBatch([s1, s2])
       } else {
         const query1 = `update ${this.userreactionTable} set ${this.reaction} = $1 where ${this.id} = $2 and ${this.author} = $3`
         const query2 = `update ${this.userinfoTable} set ${this.prefix}${r[0].reaction}${this.suffix} = ${this.prefix}${r[0].reaction}${this.suffix} - 1, ${this.prefix}${reaction}${this.suffix} = ${this.prefix}${reaction}${this.suffix} + 1
            where ${this.infoId} = $1`
         const s1: Statement = { query: query1, params: [reaction, id, author] }
         const s2: Statement = { query: query2, params: [id] }
-        return this.db.execBatch([s1, s2], true)
+        return this.db.executeBatch([s1, s2], true)
       }
     })
   }
@@ -1207,7 +1207,7 @@ export class ReactionService<ID> {
         where ${this.infoId} = $1`
     const s1: Statement = { query: query1, params: [id, author, reaction] }
     const s2: Statement = { query: query2, params: [id] }
-    return this.db.execBatch([s1, s2], true)
+    return this.db.executeBatch([s1, s2], true)
   }
   checkReaction(id: ID, author: ID): Promise<number> {
     const sql = `select reaction from ${this.userreactionTable} where ${this.id} = $1 and ${this.author} = $2`

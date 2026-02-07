@@ -1,6 +1,6 @@
 {
   "name": "pg-extension",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "postgres",
   "main": "./lib/index.js",
   "types": "./src/index.ts",
