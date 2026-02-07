@@ -31,11 +31,11 @@ export function createPool(conf: Config): Pool {
 export class PoolManager implements DB {
   constructor(public pool: Pool) {
     this.param = this.param.bind(this)
-    this.exec = this.exec.bind(this)
-    this.execBatch = this.execBatch.bind(this)
+    this.execute = this.execute.bind(this)
+    this.executeBatch = this.executeBatch.bind(this)
     this.query = this.query.bind(this)
     this.queryOne = this.queryOne.bind(this)
-    this.execScalar = this.execScalar.bind(this)
+    this.executeScalar = this.executeScalar.bind(this)
     this.count = this.count.bind(this)
   }
   driver = "postgres"
@@ -49,17 +49,21 @@ export class PoolManager implements DB {
       const clientManager = new PoolClientManager(client)
       return clientManager  
     } catch (err) {
-      client.release()
+      try {
+        client.release()
+      } catch (er2) {
+        console.log("error when release PoolClient in beginTransaction. Details: " + JSON.stringify(er2))
+      }
       throw err
     }
   }
-  exec(sql: string, args?: any[], ctx?: any): Promise<number> {
+  execute(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.pool
-    return exec(p, sql, args)
+    return execute(p, sql, args)
   }
-  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number> {
+  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.pool
-    return execBatch(p, statements, firstSuccess)
+    return executeBatch(p, statements, firstSuccess)
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]> {
     const p = ctx ? ctx : this.pool
@@ -69,9 +73,9 @@ export class PoolManager implements DB {
     const p = ctx ? ctx : this.pool
     return queryOne(p, sql, args, m, bools)
   }
-  execScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T> {
+  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T> {
     const p = ctx ? ctx : this.pool
-    return execScalar<T>(p, sql, args)
+    return executeScalar<T>(p, sql, args)
   }
   count(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.pool
@@ -82,11 +86,11 @@ export class PoolManager implements DB {
 export class PoolClientManager implements Transaction {
   constructor(public client: PoolClient) {
     this.param = this.param.bind(this)
-    this.exec = this.exec.bind(this)
-    this.execBatch = this.execBatch.bind(this)
+    this.execute = this.execute.bind(this)
+    this.executeBatch = this.executeBatch.bind(this)
     this.query = this.query.bind(this)
     this.queryOne = this.queryOne.bind(this)
-    this.execScalar = this.execScalar.bind(this)
+    this.executeScalar = this.executeScalar.bind(this)
     this.count = this.count.bind(this)
   }
   driver = "postgres"
@@ -101,23 +105,13 @@ export class PoolClientManager implements Transaction {
     await this.client.query("rollback")
     this.client.release()
   }
-  async end(): Promise<void> {
-    try {
-      await this.client.query("commit")
-      this.client.release()
-    } catch (e) {
-      await this.client.query("rollback")
-      this.client.release()
-      throw e
-    }
-  }
-  exec(sql: string, args?: any[], ctx?: any): Promise<number> {
+  execute(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.client
-    return exec(this.client, sql, args)
+    return execute(this.client, sql, args)
   }
-  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number> {
+  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.client
-    return execBatchWithClient(p, statements, firstSuccess)
+    return executeBatchWithClient(p, statements, firstSuccess)
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]> {
     const p = ctx ? ctx : this.client
@@ -127,9 +121,9 @@ export class PoolClientManager implements Transaction {
     const p = ctx ? ctx : this.client
     return queryOne(p, sql, args, m, bools)
   }
-  execScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T> {
+  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T> {
     const p = ctx ? ctx : this.client
-    return execScalar<T>(p, sql, args)
+    return executeScalar<T>(p, sql, args)
   }
   count(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.client
@@ -145,7 +139,7 @@ function buildError(err: any): any {
 export interface Query {
   query<R extends QueryResultRow = any, I extends any[] = any[]>(queryText: string, values: I, callback: (err: Error, result: QueryResult<R>) => void): void
 }
-export function exec(client: Query, sql: string, args?: any[]): Promise<number> {
+export function execute(client: Query, sql: string, args?: any[]): Promise<number> {
   const p = toArray(args)
   return new Promise<number>((resolve, reject) => {
     return client.query(sql, p, (err, results) => {
@@ -175,7 +169,7 @@ export function queryOne<T>(client: Query, sql: string, args?: any[], m?: String
     return r && r.length > 0 ? r[0] : null
   })
 }
-export function execScalar<T>(client: Query, sql: string, args?: any[]): Promise<T> {
+export function executeScalar<T>(client: Query, sql: string, args?: any[]): Promise<T> {
   return queryOne<T>(client, sql, args).then((r) => {
     if (!r) {
       return null
@@ -186,14 +180,14 @@ export function execScalar<T>(client: Query, sql: string, args?: any[]): Promise
   })
 }
 export function count(client: Query, sql: string, args?: any[]): Promise<number> {
-  return execScalar<number>(client, sql, args)
+  return executeScalar<number>(client, sql, args)
 }
 
-export async function execBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export async function executeBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
-    return exec(pool, statements[0].query, toArray(statements[0].params))
+    return execute(pool, statements[0].query, toArray(statements[0].params))
   }
   const client = await pool.connect()
   let c = 0
@@ -249,11 +243,11 @@ export async function execBatch(pool: Pool, statements: Statement[], firstSucces
     }
   }
 }
-export async function execBatchWithClientTx(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export async function executeBatchWithClientTx(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
-    return exec(client, statements[0].query, statements[0].params)
+    return execute(client, statements[0].query, statements[0].params)
   }
   let c = 0
   if (firstSuccess) {
@@ -306,11 +300,11 @@ export async function execBatchWithClientTx(client: PoolClient, statements: Stat
     }
   }
 }
-export async function execBatchWithClient(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export async function executeBatchWithClient(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
-    return exec(client, statements[0].query, statements[0].params)
+    return execute(client, statements[0].query, statements[0].params)
   }
   let c = 0
   if (firstSuccess) {
@@ -361,7 +355,7 @@ export function save<T>(
   if (typeof client === "function") {
     return client(s.query, s.params)
   } else {
-    return exec(client, s.query, s.params)
+    return execute(client, s.query, s.params)
   }
 }
 export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
@@ -369,7 +363,7 @@ export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attrib
   if (!s) {
     return Promise.resolve(-1)
   } else {
-    return execBatch(pool, s)
+    return executeBatch(pool, s)
   }
 }
 export function saveBatchWithClient<T>(
@@ -384,7 +378,7 @@ export function saveBatchWithClient<T>(
   if (!s) {
     return Promise.resolve(-1)
   } else {
-    return execBatchWithClientTx(client, s)
+    return executeBatchWithClientTx(client, s)
   }
 }
 
@@ -627,9 +621,9 @@ export class PostgreSQLWriter<T> {
         }
       } else {
         if (this.oneIfSuccess) {
-          return exec(this.pool as any, stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
+          return execute(this.pool as any, stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
         } else {
-          return exec(this.pool as any, stmt.query, stmt.params)
+          return execute(this.pool as any, stmt.query, stmt.params)
         }
       }
     } else {
@@ -701,7 +695,7 @@ export class PostgreSQLStreamWriter<T> {
             return total
           })
         } else {
-          return execBatch(this.pool as any, stmt).then((r) => {
+          return executeBatch(this.pool as any, stmt).then((r) => {
             this.list = []
             return total
           })
@@ -756,7 +750,7 @@ export class PostgreSQLBatchWriter<T> {
       if (this.execute) {
         return this.execute(stmts)
       } else {
-        return execBatch(this.pool as any, stmts)
+        return executeBatch(this.pool as any, stmts)
       }
     } else {
       return Promise.resolve(0)

@@ -9,17 +9,16 @@ export interface Statement {
 export interface Executor {
   driver: string
   param(i: number): string
-  exec(sql: string, args?: any[], ctx?: any): Promise<number>
-  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
+  execute(sql: string, args?: any[], ctx?: any): Promise<number>
+  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
   queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T | null>
-  execScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T>
+  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T>
   count(sql: string, args?: any[], ctx?: any): Promise<number>
 }
 export interface Transaction extends Executor {
   commit(): Promise<void>
   rollback(): Promise<void>
-  end(): Promise<void>
 }
 export interface DB extends Executor {
   beginTransaction(): Promise<Transaction>
@@ -27,8 +26,8 @@ export interface DB extends Executor {
 export interface MinDB {
   driver: string
   param(i: number): string
-  exec(sql: string, args?: any[], ctx?: any): Promise<number>
-  execBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
+  execute(sql: string, args?: any[], ctx?: any): Promise<number>
+  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
 }
 export type DataType =
