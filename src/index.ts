@@ -44,9 +44,14 @@ export class PoolManager implements DB {
   }
   async beginTransaction(): Promise<Transaction> {
     const client = await this.pool.connect()
-    await client.query("begin")
-    const clientManager = new PoolClientManager(client)
-    return clientManager
+    try {
+      await client.query("begin")
+      const clientManager = new PoolClientManager(client)
+      return clientManager  
+    } catch (err) {
+      client.release()
+      throw err
+    }
   }
   exec(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.pool
