@@ -188,7 +188,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
     }
   }
 }
-export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Statement[] | undefined {
+export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Statement[] {
   if (!buildParam) {
     buildParam = param
   }
@@ -196,7 +196,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
   const meta = metadata(attrs)
   const pks = meta.keys
   if (!pks || pks.length === 0) {
-    return undefined
+    return sts
   }
   const ks = Object.keys(attrs)
   for (const obj of objs) {

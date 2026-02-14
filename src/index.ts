@@ -183,65 +183,15 @@ export function count(client: Query, sql: string, args?: any[]): Promise<number>
   return executeScalar<number>(client, sql, args)
 }
 
-export async function executeBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export function executeBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
     return execute(pool, statements[0].query, toArray(statements[0].params))
   }
-  const client = await pool.connect()
-  let c = 0
-  if (firstSuccess) {
-    try {
-      await client.query("begin")
-      const result0 = await client.query(statements[0].query, toArray(statements[0].params))
-      if (result0 && result0.rowCount !== 0) {
-        const subs = statements.slice(1)
-        const arrPromise = subs.map((item) => {
-          return client.query(item.query, item.params ? item.params : [])
-        })
-        await Promise.all(arrPromise).then((results) => {
-          for (const obj of results) {
-            if (obj.rowCount) {
-              c += obj.rowCount
-            }
-          }
-        })
-        if (result0.rowCount) {
-          c += result0.rowCount
-        }
-        await client.query("commit")
-        client.release()
-      }
-      return c
-    } catch (e) {
-      buildError(e)
-      await client.query("rollback")
-      client.release()
-      throw e
-    }
-  } else {
-    try {
-      await client.query("begin")
-      const arrPromise = statements.map((item, i) => {
-        return client.query(item.query, toArray(item.params))
-      })
-      await Promise.all(arrPromise).then((results) => {
-        for (const obj of results) {
-          if (obj.rowCount) {
-            c += obj.rowCount
-          }
-        }
-      })
-      await client.query("commit")
-      client.release()
-      return c
-    } catch (e) {
-      await client.query("rollback")
-      client.release()
-      throw e
-    }
-  }
+  return pool.connect().then(client => {
+    return executeBatchWithClientTx(client, statements, firstSuccess)
+  })
 }
 export async function executeBatchWithClientTx(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
@@ -349,7 +299,7 @@ export function save<T>(
   buildParam?: (i: number) => string,
 ): Promise<number> {
   const s = buildToSave(obj, table, attrs, ver, buildParam)
-  if (s.query.length === 0) {
+  if (!s.query) {
     return Promise.resolve(-1)
   }
   if (typeof client === "function") {
@@ -360,8 +310,8 @@ export function save<T>(
 }
 export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
   const s = buildToSaveBatch(objs, table, attrs, ver, buildParam)
-  if (!s) {
-    return Promise.resolve(-1)
+  if (s.length === 0) {
+    return Promise.resolve(0)
   } else {
     return executeBatch(pool, s)
   }
@@ -375,8 +325,8 @@ export function saveBatchWithClient<T>(
   buildParam?: (i: number) => string,
 ): Promise<number> {
   const s = buildToSaveBatch(objs, table, attrs, ver, buildParam)
-  if (!s) {
-    return Promise.resolve(-1)
+  if (s.length === 0) {
+    return Promise.resolve(0)
   } else {
     return executeBatchWithClientTx(client, s)
   }
@@ -612,7 +562,7 @@ export class PostgreSQLWriter<T> {
       obj2 = this.map(obj)
     }
     const stmt = buildToSave(obj2, this.table, this.attributes, this.version, this.param)
-    if (stmt.query.length > 0) {
+    if (stmt.query) {
       if (this.execute) {
         if (this.oneIfSuccess) {
           return this.execute(stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
@@ -688,7 +638,7 @@ export class PostgreSQLStreamWriter<T> {
     } else {
       const total = this.list.length
       const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.version, this.param)
-      if (stmt) {
+      if (stmt.length > 0) {
         if (this.executeBatch) {
           return this.executeBatch(stmt).then((r) => {
             this.list = []
@@ -746,7 +696,7 @@ export class PostgreSQLBatchWriter<T> {
       }
     }
     const stmts = buildToSaveBatch(list, this.table, this.attributes, this.version, this.param)
-    if (stmts && stmts.length > 0) {
+    if (stmts.length > 0) {
       if (this.execute) {
         return this.execute(stmts)
       } else {
