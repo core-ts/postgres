@@ -199,25 +199,20 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
   } else if (statements.length === 1) {
     return execute(client, statements[0].query, statements[0].params)
   }
-  let c = 0
+  let c: number = 0
   if (firstSuccess) {
     try {
       await client.query("begin")
       const result0 = await client.query(statements[0].query, toArray(statements[0].params))
-      if (result0 && result0.rowCount !== 0) {
-        const subs = statements.slice(1)
-        const arrPromise = subs.map((item, i) => {
-          return client.query(item.query, item.params ? item.params : [])
-        })
-        await Promise.all(arrPromise).then((results) => {
-          for (const obj of results) {
-            if (obj.rowCount) {
-              c += obj.rowCount
-            }
+      if (result0 && result0.rowCount) {
+        c = result0.rowCount
+        const l = statements.length
+        for (let j = 1; j < l; j++) {
+          const item = statements[j]
+          const res = await client.query(item.query, toArray(item.params))
+          if (res.rowCount) {
+            c += res.rowCount
           }
-        })
-        if (result0.rowCount) {
-          c += result0.rowCount
         }
         await client.query("commit")
         client.release()
@@ -230,16 +225,14 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
   } else {
     try {
       await client.query("begin")
-      const arrPromise = statements.map((item, i) => {
-        return client.query(item.query, toArray(item.params))
-      })
-      await Promise.all(arrPromise).then((results) => {
-        for (const obj of results) {
-          if (obj.rowCount) {
-            c += obj.rowCount
-          }
+      const l = statements.length
+      for (let j = 0; j < l; j++) {
+        const item = statements[j]
+        const res = await client.query(item.query, toArray(item.params))
+        if (res.rowCount) {
+          c += res.rowCount
         }
-      })
+      }
       await client.query("commit")
       client.release()
       return c
@@ -259,34 +252,27 @@ export async function executeBatchWithClient(client: PoolClient, statements: Sta
   let c = 0
   if (firstSuccess) {
     const result0 = await client.query(statements[0].query, toArray(statements[0].params))
-    if (result0 && result0.rowCount !== 0) {
-      const subs = statements.slice(1)
-      const arrPromise = subs.map((item, i) => {
-        return client.query(item.query, item.params ? item.params : [])
-      })
-      await Promise.all(arrPromise).then((results) => {
-        for (const obj of results) {
-          if (obj.rowCount) {
-            c += obj.rowCount
-          }
+    if (result0 && result0.rowCount) {
+      c = result0.rowCount
+      const l = statements.length
+      for (let j = 1; j < l; j++) {
+        const item = statements[j]
+        const res = await client.query(item.query, toArray(item.params))
+        if (res.rowCount) {
+          c += res.rowCount
         }
-      })
-      if (result0.rowCount) {
-        c += result0.rowCount
       }
     }
     return c
   } else {
-    const arrPromise = statements.map((item, i) => {
-      return client.query(item.query, toArray(item.params))
-    })
-    await Promise.all(arrPromise).then((results) => {
-      for (const obj of results) {
-        if (obj.rowCount) {
-          c += obj.rowCount
-        }
+    const l = statements.length
+    for (let j = 0; j < l; j++) {
+      const item = statements[j]
+      const res = await client.query(item.query, toArray(item.params))
+      if (res.rowCount) {
+        c += res.rowCount
       }
-    })
+    }
     return c
   }
 }
