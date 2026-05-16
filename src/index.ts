@@ -52,7 +52,7 @@ export class PoolManager implements DB {
       try {
         client.release()
       } catch (er2) {
-        console.log("error when release PoolClient in beginTransaction. Details: " + JSON.stringify(er2))
+        console.error("error when release PoolClient in beginTransaction. Details: " + JSON.stringify(er2))
       }
       throw err
     }
@@ -1027,33 +1027,26 @@ export class FollowUserRepository<ID> {
     this.checkFollow = this.checkFollow.bind(this)
   }
   follow(id: ID, target: ID): Promise<number> {
-    const double = `select * from ${this.followingTable} where ${this.id} = $1 and ${this.following} = $2`
-    return this.execute([{ query: double, params: [id, target] }], true).then((data) => {
-      if (data > 0) {
-        return 0
-      } else {
-        const now = new Date()
-        const query1 = `insert into ${this.followerTable}(${this.followerId}, ${this.follower}, ${this.followed_at}) values ($1, $2, $3) on conflict (${this.followerId}, ${this.follower}) do nothing`
-        const query2 = `insert into ${this.followingTable}(${this.id}, ${this.following}, ${this.following_at}) values ($1, $2, $3) on conflict (${this.id}, ${this.following}) do nothing`
-        const query3 = `
-                insert into ${this.infoTable}(${this.infoId},${this.followerCount},${this.followingCount})
-                values ($1, 1, 0)
-                on conflict (${this.infoId}) do update set ${this.followerCount} = ${this.infoTable}.${this.followerCount} + 1`
-        const query4 = `
-                insert into ${this.infoTable}(${this.infoId},${this.followerCount},${this.followingCount})
-                values ($1, 0, 1)
-                on conflict (${this.infoId}) do update set ${this.followingCount} =   ${this.infoTable}.${this.followingCount} + 1`
-        return this.execute(
-          [
-            { query: query1, params: [target, id, now] },
-            { query: query2, params: [id, target, now] },
-            { query: query3, params: [target] },
-            { query: query4, params: [id] },
-          ],
-          true,
-        )
-      }
-    })
+    const now = new Date()
+    const query1 = `insert into ${this.followerTable}(${this.followerId}, ${this.follower}, ${this.followed_at}) values ($1, $2, $3) on conflict (${this.followerId}, ${this.follower}) do nothing`
+    const query2 = `insert into ${this.followingTable}(${this.id}, ${this.following}, ${this.following_at}) values ($1, $2, $3) on conflict (${this.id}, ${this.following}) do nothing`
+    const query3 = `
+            insert into ${this.infoTable}(${this.infoId},${this.followerCount},${this.followingCount})
+            values ($1, 1, 0)
+            on conflict (${this.infoId}) do update set ${this.followerCount} = ${this.infoTable}.${this.followerCount} + 1`
+    const query4 = `
+            insert into ${this.infoTable}(${this.infoId},${this.followerCount},${this.followingCount})
+            values ($1, 0, 1)
+            on conflict (${this.infoId}) do update set ${this.followingCount} =   ${this.infoTable}.${this.followingCount} + 1`
+    return this.execute(
+      [
+        { query: query1, params: [target, id, now] },
+        { query: query2, params: [id, target, now] },
+        { query: query3, params: [target] },
+        { query: query4, params: [id] },
+      ],
+      true,
+    )
   }
   unfollow(id: ID, target: ID): Promise<number> {
     const query1 = `delete from ${this.followerTable} where ${this.followerId} = $1 and ${this.follower}=$2`
@@ -1077,8 +1070,67 @@ export class FollowUserRepository<ID> {
     )
   }
   checkFollow(id: ID, target: ID): Promise<boolean> {
-    const check = `select ${this.id} from ${this.followingTable} where ${this.id} = $1 and ${this.following} = $2 `
-    return this.execute([{ query: check, params: [id, target] }]).then((count) => {
+    const check = `select ${this.id} from ${this.followerTable} where ${this.id} = $1 and ${this.follower} = $2 `
+    return this.execute([{ query: check, params: [target, id] }]).then((count) => {
+      return count > 0 ? true : false
+    })
+  }
+}
+export class FollowRepository<ID> {
+  constructor(
+    public execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
+    public followingTable: string,
+    public id: string,
+    public following: string,
+    public following_at: string,
+    public followerTable: string,
+    public followerId: string,
+    public follower: string,
+    public followed_at: string,
+    public infoTable: string,
+    public infoId: string,
+    public followerCount: string,
+  ) {
+    this.follow = this.follow.bind(this)
+    this.unfollow = this.unfollow.bind(this)
+    this.checkFollow = this.checkFollow.bind(this)
+  }
+  follow(id: ID, target: ID): Promise<number> {
+    const now = new Date()
+    const query1 = `insert into ${this.followerTable}(${this.followerId}, ${this.follower}, ${this.followed_at}) values ($1, $2, $3) on conflict (${this.followerId}, ${this.follower}) do nothing`
+    const query2 = `insert into ${this.followingTable}(${this.id}, ${this.following}, ${this.following_at}) values ($1, $2, $3) on conflict (${this.id}, ${this.following}) do nothing`
+    const query3 = `
+            insert into ${this.infoTable}(${this.infoId}, ${this.followerCount})
+            values ($1, 1)
+            on conflict (${this.infoId}) do update set ${this.followerCount} = ${this.infoTable}.${this.followerCount} + 1`
+    return this.execute(
+      [
+        { query: query1, params: [target, id, now] },
+        { query: query2, params: [id, target, now] },
+        { query: query3, params: [target] },
+      ],
+      true,
+    )
+  }
+  unfollow(id: ID, target: ID): Promise<number> {
+    const query1 = `delete from ${this.followerTable} where ${this.followerId} = $1 and ${this.follower}=$2`
+    const query2 = `delete from ${this.followingTable} where ${this.id} = $1 and ${this.following}=$2`
+    const query3 = `
+            update ${this.infoTable}
+            set ${this.followerCount} =${this.followerCount} - 1
+            where ${this.infoId} = $1`
+    return this.execute(
+      [
+        { query: query2, params: [id, target] },
+        { query: query1, params: [target, id] },
+        { query: query3, params: [target] },
+      ],
+      true,
+    )
+  }
+  checkFollow(id: ID, target: ID): Promise<boolean> {
+    const check = `select ${this.id} from ${this.followerTable} where ${this.id} = $1 and ${this.follower} = $2 `
+    return this.execute([{ query: check, params: [target, id] }]).then((count) => {
       return count > 0 ? true : false
     })
   }
