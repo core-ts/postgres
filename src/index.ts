@@ -1006,7 +1006,7 @@ export class ArrayRepository<ID, T> {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class FollowRepository<ID> {
+export class FollowUserRepository<ID> {
   constructor(
     public execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
     public followingTable: string,
@@ -1033,22 +1033,22 @@ export class FollowRepository<ID> {
         return 0
       } else {
         const now = new Date()
-        const query1 = `insert into ${this.followingTable}(${this.id}, ${this.following}, ${this.following_at}) values ($1, $2, $3) on conflict (${this.id}, ${this.following}) do nothing`
-        const query2 = `insert into ${this.followerTable}(${this.followerId}, ${this.follower}, ${this.followed_at}) values ($1, $2, $3) on conflict (${this.followerId}, ${this.follower}) do nothing`
+        const query1 = `insert into ${this.followerTable}(${this.followerId}, ${this.follower}, ${this.followed_at}) values ($1, $2, $3) on conflict (${this.followerId}, ${this.follower}) do nothing`
+        const query2 = `insert into ${this.followingTable}(${this.id}, ${this.following}, ${this.following_at}) values ($1, $2, $3) on conflict (${this.id}, ${this.following}) do nothing`
         const query3 = `
-                insert into ${this.infoTable}(${this.infoId},${this.followingCount}, ${this.followerCount})
+                insert into ${this.infoTable}(${this.infoId},${this.followerCount},${this.followingCount})
                 values ($1, 1, 0)
-                on conflict (${this.infoId}) do update set ${this.followingCount} =   ${this.infoTable}.${this.followingCount} + 1`
-        const query4 = `
-                insert into ${this.infoTable}(${this.infoId},${this.followingCount}, ${this.followerCount})
-                values ($1, 0, 1)
                 on conflict (${this.infoId}) do update set ${this.followerCount} = ${this.infoTable}.${this.followerCount} + 1`
+        const query4 = `
+                insert into ${this.infoTable}(${this.infoId},${this.followerCount},${this.followingCount})
+                values ($1, 0, 1)
+                on conflict (${this.infoId}) do update set ${this.followingCount} =   ${this.infoTable}.${this.followingCount} + 1`
         return this.execute(
           [
-            { query: query1, params: [id, target, now] },
-            { query: query2, params: [target, id, now] },
-            { query: query3, params: [id] },
-            { query: query4, params: [target] },
+            { query: query1, params: [target, id, now] },
+            { query: query2, params: [id, target, now] },
+            { query: query3, params: [target] },
+            { query: query4, params: [id] },
           ],
           true,
         )
@@ -1056,22 +1056,22 @@ export class FollowRepository<ID> {
     })
   }
   unfollow(id: ID, target: ID): Promise<number> {
-    const query1 = `delete from ${this.followingTable} where ${this.id} = $1 and ${this.following}=$2`
-    const query2 = `delete from ${this.followerTable} where ${this.followerId} = $1 and ${this.follower}=$2`
+    const query1 = `delete from ${this.followerTable} where ${this.followerId} = $1 and ${this.follower}=$2`
+    const query2 = `delete from ${this.followingTable} where ${this.id} = $1 and ${this.following}=$2`
     const query3 = `
-            update ${this.infoTable}
-            set ${this.followingCount} = ${this.followingCount} -1
-            where ${this.infoId} = $1`
-    const query4 = `
             update ${this.infoTable}
             set ${this.followerCount} =${this.followerCount} - 1
             where ${this.infoId} = $1`
+    const query4 = `
+            update ${this.infoTable}
+            set ${this.followingCount} = ${this.followingCount} -1
+            where ${this.infoId} = $1`
     return this.execute(
       [
-        { query: query1, params: [id, target] },
-        { query: query2, params: [target, id] },
-        { query: query3, params: [id] },
-        { query: query4, params: [target] },
+        { query: query1, params: [target, id] },
+        { query: query2, params: [id, target] },
+        { query: query3, params: [target] },
+        { query: query4, params: [id] },
       ],
       true,
     )
