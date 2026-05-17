@@ -812,8 +812,8 @@ export interface Passcode {
 // tslint:disable-next-line:max-classes-per-file
 export class CodeRepository<ID> {
   constructor(
-    public db: MinDB,
-    public table: string,
+    protected db: MinDB,
+    protected table: string,
     id?: string,
     expiredAt?: string,
     passcode?: string,
@@ -971,10 +971,10 @@ export class SqlSavedRepository {
 // tslint:disable-next-line:max-classes-per-file
 export class ArrayRepository<ID, T> {
   constructor(
-    public select: <K>(sql: string, args?: any[]) => Promise<K[]>,
-    public execute: (sql: string, args?: any[]) => Promise<number>,
-    public table: string,
-    public field: string,
+    protected select: <K>(sql: string, args?: any[]) => Promise<K[]>,
+    protected execute: (sql: string, args?: any[]) => Promise<number>,
+    protected table: string,
+    protected field: string,
     id?: string,
   ) {
     this.id = id && id.length > 0 ? id : "id"
@@ -1008,19 +1008,19 @@ export class ArrayRepository<ID, T> {
 // tslint:disable-next-line:max-classes-per-file
 export class FollowUserRepository<ID> {
   constructor(
-    public execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
-    public followerTable: string,
-    public followerId: string,
-    public follower: string,
-    public followed_at: string,
-    public followingTable: string,
-    public id: string,
-    public following: string,
-    public following_at: string,
-    public infoTable: string,
-    public infoId: string,
-    public followerCount: string,
-    public followingCount: string,
+    protected execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
+    protected followerTable: string,
+    protected followerId: string,
+    protected follower: string,
+    protected followed_at: string,
+    protected followingTable: string,
+    protected id: string,
+    protected following: string,
+    protected following_at: string,
+    protected infoTable: string,
+    protected infoId: string,
+    protected followerCount: string,
+    protected followingCount: string,
   ) {
     this.follow = this.follow.bind(this)
     this.unfollow = this.unfollow.bind(this)
@@ -1037,7 +1037,7 @@ export class FollowUserRepository<ID> {
     const query4 = `
             insert into ${this.infoTable}(${this.infoId},${this.followerCount},${this.followingCount})
             values ($1, 0, 1)
-            on conflict (${this.infoId}) do update set ${this.followingCount} =   ${this.infoTable}.${this.followingCount} + 1`
+            on conflict (${this.infoId}) do update set ${this.followingCount} = ${this.infoTable}.${this.followingCount} + 1`
     return this.execute(
       [
         { query: query1, params: [target, id, now] },
@@ -1052,13 +1052,13 @@ export class FollowUserRepository<ID> {
     const query1 = `delete from ${this.followerTable} where ${this.followerId} = $1 and ${this.follower}=$2`
     const query2 = `delete from ${this.followingTable} where ${this.id} = $1 and ${this.following}=$2`
     const query3 = `
-            update ${this.infoTable}
-            set ${this.followerCount} =${this.followerCount} - 1
-            where ${this.infoId} = $1`
+      update ${this.infoTable}
+      set ${this.followerCount} = ${this.followerCount} - 1
+      where ${this.infoId} = $1`
     const query4 = `
-            update ${this.infoTable}
-            set ${this.followingCount} = ${this.followingCount} -1
-            where ${this.infoId} = $1`
+      update ${this.infoTable}
+      set ${this.followingCount} = ${this.followingCount} -1
+      where ${this.infoId} = $1`
     return this.execute(
       [
         { query: query1, params: [target, id] },
@@ -1076,20 +1076,20 @@ export class FollowUserRepository<ID> {
     })
   }
 }
-export class FollowRepository<ID> {
+export class SqlFollowRepository<ID> {
   constructor(
-    public execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
-    public followerTable: string,
-    public followerId: string,
-    public follower: string,
-    public followed_at: string,
-    public followingTable: string,
-    public id: string,
-    public following: string,
-    public following_at: string,
-    public infoTable: string,
-    public infoId: string,
-    public followerCount: string,
+    protected execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
+    protected followerTable: string,
+    protected followerId: string,
+    protected follower: string,
+    protected followed_at: string,
+    protected followingTable: string,
+    protected id: string,
+    protected following: string,
+    protected following_at: string,
+    protected infoTable: string,
+    protected infoId: string,
+    protected followerCount: string,
   ) {
     this.follow = this.follow.bind(this)
     this.unfollow = this.unfollow.bind(this)
@@ -1100,9 +1100,9 @@ export class FollowRepository<ID> {
     const query1 = `insert into ${this.followerTable}(${this.followerId}, ${this.follower}, ${this.followed_at}) values ($1, $2, $3) on conflict (${this.followerId}, ${this.follower}) do nothing`
     const query2 = `insert into ${this.followingTable}(${this.id}, ${this.following}, ${this.following_at}) values ($1, $2, $3) on conflict (${this.id}, ${this.following}) do nothing`
     const query3 = `
-            insert into ${this.infoTable}(${this.infoId}, ${this.followerCount})
-            values ($1, 1)
-            on conflict (${this.infoId}) do update set ${this.followerCount} = ${this.infoTable}.${this.followerCount} + 1`
+      insert into ${this.infoTable}(${this.infoId}, ${this.followerCount})
+      values ($1, 1)
+      on conflict (${this.infoId}) do update set ${this.followerCount} = ${this.infoTable}.${this.followerCount} + 1`
     return this.execute(
       [
         { query: query1, params: [target, id, now] },
@@ -1116,9 +1116,9 @@ export class FollowRepository<ID> {
     const query1 = `delete from ${this.followerTable} where ${this.followerId} = $1 and ${this.follower}=$2`
     const query2 = `delete from ${this.followingTable} where ${this.id} = $1 and ${this.following}=$2`
     const query3 = `
-            update ${this.infoTable}
-            set ${this.followerCount} =${this.followerCount} - 1
-            where ${this.infoId} = $1`
+      update ${this.infoTable}
+      set ${this.followerCount} = ${this.followerCount} - 1
+      where ${this.infoId} = $1`
     return this.execute(
       [
         { query: query2, params: [id, target] },
