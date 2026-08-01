@@ -29,7 +29,7 @@ export function createPool(conf: Config): Pool {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class PoolManager implements DB {
-  constructor(public pool: Pool) {
+  constructor(protected pool: Pool) {
     this.param = this.param.bind(this);
     this.execute = this.execute.bind(this);
     this.executeBatch = this.executeBatch.bind(this);
@@ -84,7 +84,7 @@ export class PoolManager implements DB {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class PoolClientManager implements Transaction {
-  constructor(public client: PoolClient) {
+  constructor(protected client: PoolClient) {
     this.param = this.param.bind(this);
     this.execute = this.execute.bind(this);
     this.executeBatch = this.executeBatch.bind(this);
@@ -506,9 +506,9 @@ export class PostgreSQLWriter<T> {
   param?: (i: number) => string;
   constructor(
     pool: Pool | ((sql: string, args?: any[]) => Promise<number>),
-    public table: string,
-    public attributes: Attributes,
-    public oneIfSuccess?: boolean,
+    protected table: string,
+    protected attributes: Attributes,
+    protected oneIfSuccess?: boolean,
     toDB?: (v: T) => T,
     buildParam?: (i: number) => string,
   ) {
@@ -564,8 +564,8 @@ export class PostgreSQLStreamWriter<T> {
   param?: (i: number) => string;
   constructor(
     con: Pool | ((statements: Statement[]) => Promise<number>),
-    public table: string,
-    public attributes: Attributes,
+    protected table: string,
+    protected attributes: Attributes,
     size?: number,
     toDB?: (v: T) => T,
     buildParam?: (i: number) => string,
@@ -637,8 +637,8 @@ export class PostgreSQLBatchWriter<T> {
   param?: (i: number) => string;
   constructor(
     pool: Pool | ((statements: Statement[]) => Promise<number>),
-    public table: string,
-    public attributes: Attributes,
+    protected table: string,
+    protected attributes: Attributes,
     toDB?: (v: T) => T,
     buildParam?: (i: number) => string,
   ) {
@@ -860,13 +860,6 @@ export class SqlPasscodeRepository<ID> extends CodeRepository<ID> {}
 // tslint:disable-next-line:max-classes-per-file
 export class SqlCodeRepository<ID> extends CodeRepository<ID> {}
 // tslint:disable-next-line:max-classes-per-file
-export class CodeService<ID> extends CodeRepository<ID> {}
-// tslint:disable-next-line:max-classes-per-file
-export class PasscodeService<ID> extends CodeRepository<ID> {}
-// tslint:disable-next-line:max-classes-per-file
-export class SqlPasscodeService<ID> extends CodeRepository<ID> {}
-// tslint:disable-next-line:max-classes-per-file
-export class SqlCodeService<ID> extends CodeRepository<ID> {}
 
 export interface URL<ID> {
   id: ID;
@@ -1138,18 +1131,18 @@ export interface DB2 {
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>;
 }
 // tslint:disable-next-line:max-classes-per-file
-export class ReactionService<ID> {
+export class ReactRepository<ID> {
   constructor(
-    public db: DB2,
-    public userreactionTable: string,
-    public id: string,
-    public author: string,
-    public reaction: string,
-    public prefix: string,
-    public suffix: string,
-    public userinfoTable: string,
-    public infoId: string,
-    public reactioncount: string,
+    protected db: DB2,
+    protected userreactionTable: string,
+    protected id: string,
+    protected author: string,
+    protected reaction: string,
+    protected prefix: string,
+    protected suffix: string,
+    protected userinfoTable: string,
+    protected infoId: string,
+    protected reactioncount: string,
   ) {
     this.react = this.react.bind(this);
     this.unreact = this.unreact.bind(this);
@@ -1201,8 +1194,4 @@ export class ReactionService<ID> {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class ReactService<ID> extends ReactionService<ID> {}
-// tslint:disable-next-line:max-classes-per-file
-export class ReactRepository<ID> extends ReactionService<ID> {}
-// tslint:disable-next-line:max-classes-per-file
-export class ReactionRepository<ID> extends ReactionService<ID> {}
+export class ReactionRepository<ID> extends ReactRepository<ID> {}
