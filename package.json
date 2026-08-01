@@ -1,6 +1,6 @@
 {
   "name": "pg-extension",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "postgres",
   "main": "./lib/index.js",
   "types": "./src/index.ts",
@@ -12,7 +12,6 @@
     "pg": "^8.6.0"
   },
   "devDependencies": {
-    "tslint": "5.10.0",
     "typescript": "^3.3.3333",
     "@types/pg": "^8.6.1"
   },
@@ -26,6 +25,8 @@
   "keywords": [
     "pg",
     "pg-extension",
+    "pg-plus",
+    "pg-kit",
     "postgres",
     "postgresql",
     "sql"
