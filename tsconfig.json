@@ -13,9 +13,7 @@
     "experimentalDecorators": false,
     "removeComments": true,
     "lib": [
-      "es6",
-      "ES2016",
-      "DOM"
+      "es6"
     ]
   },
   "include": [
