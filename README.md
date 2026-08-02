@@ -1,8 +1,8 @@
-# pg-extension
+# postgres-kit
 
 A high-performance PostgreSQL toolkit for Node.js built on top of the official [**pg**](https://www.npmjs.com/package/pg) driver.
 
-[`pg-extension`](https://www.npmjs.com/package/pg-extension) is the PostgreSQL adapter for the [**sql-core**](https://www.npmjs.com/package/sql-core) ecosystem. It provides execution utilities, repositories, batch processing, stream processing, health checks, and PostgreSQL-specific implementations while reusing the database-independent abstractions from [**sql-core**](https://www.npmjs.com/package/sql-core).
+[`postgres-kit`](https://www.npmjs.com/package/postgres-kit) is the PostgreSQL adapter for the [**sql-core**](https://www.npmjs.com/package/sql-core) ecosystem. It provides execution utilities, repositories, batch processing, stream processing, health checks, and PostgreSQL-specific implementations while reusing the database-independent abstractions from [**sql-core**](https://www.npmjs.com/package/sql-core).
  
 ### Example
 - [admin](https://github.com/fintech-product/admin): SSR Admin Application
@@ -26,16 +26,16 @@ A high-performance PostgreSQL toolkit for Node.js built on top of the official [
 ## Installation
 
 ```bash
-npm install pg-extension
+npm install postgres-kit
 ```
 
 or together with the ecosystem:
 
 ```bash
-npm install sql-core query-mappers pg-extension
+npm install sql-core query-mappers postgres-kit
 ```
 
-## Why pg-extension?
+## Why postgres-kit?
 Most SQL libraries are either:
 
 - Low-level drivers ([`pg`](https://www.npmjs.com/package/pg))
@@ -53,11 +53,11 @@ It provides:
 
 without hiding SQL from developers.
 
-Moreover, [`pg-extension`](https://www.npmjs.com/package/pg-extension) can work with [`sql-core`](https://www.npmjs.com/package/sql-core) and [`query-mappers`](https://www.npmjs.com/package/query-mappers). They separate responsibilities into independent layers.
+Moreover, [`postgres-kit`](https://www.npmjs.com/package/postgres-kit) can work with [`sql-core`](https://www.npmjs.com/package/sql-core) and [`query-mappers`](https://www.npmjs.com/package/query-mappers). They separate responsibilities into independent layers.
 
 * SQL generation belongs to [`sql-core`](https://www.npmjs.com/package/sql-core)
 * Object mapping belongs to [`query-mappers`](https://www.npmjs.com/package/query-mappers)
-* PostgreSQL execution belongs to [`pg-extension`](https://www.npmjs.com/package/pg-extension)
+* PostgreSQL execution belongs to [`postgres-kit`](https://www.npmjs.com/package/postgres-kit)
 
 This architecture keeps applications lightweight, modular, and easy to maintain.
 
@@ -77,7 +77,7 @@ This architecture keeps applications lightweight, modular, and easy to maintain.
       query-mappers
             │
             ▼
-      pg-extension
+      postgres-kit
             │
             ▼
        PostgreSQL
@@ -89,7 +89,7 @@ This architecture keeps applications lightweight, modular, and easy to maintain.
 | ------------- | --------------------------------------------------------------------- |
 | [`sql-core`](https://www.npmjs.com/package/sql-core)      | Database-independent repositories, CRUD, SQL builders, transactions   |
 | [`query-mappers`](https://www.npmjs.com/package/query-mappers) | Maps database rows to TypeScript models                               |
-| [`pg-extension`](https://www.npmjs.com/package/pg-extension)   | PostgreSQL execution, repositories, writers, streaming, health checks |
+| [`postgres-kit`](https://www.npmjs.com/package/postgres-kit)   | PostgreSQL execution, repositories, writers, streaming, health checks |
 
 ---
 
@@ -178,7 +178,7 @@ await db.executeBatch([
 
 ### Repository
 
-`pg-extension` provides PostgreSQL implementations that reuse the generic repositories from[`sql-core`](https://www.npmjs.com/package/sql-core).
+`postgres-kit` provides PostgreSQL implementations that reuse the generic repositories from[`sql-core`](https://www.npmjs.com/package/sql-core).
 
 Features include:
 
@@ -314,7 +314,7 @@ TypeScript Object
 
 ## Designed for Enterprise Applications
 
-`pg-extension` is suitable for:
+`postgres-kit` is suitable for:
 
 * REST APIs
 * Microservices
