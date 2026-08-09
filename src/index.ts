@@ -18,7 +18,6 @@ export interface Config {
   database?: string | undefined;
   user?: string | undefined;
   password?: string | undefined;
-  multipleStatements?: boolean | undefined;
   max?: number | undefined;
   min?: number | undefined;
   idleTimeoutMillis?: number | undefined;
@@ -107,7 +106,7 @@ export class PoolClientManager implements Transaction {
   }
   execute(sql: string, args?: any[], ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.client;
-    return execute(this.client, sql, args);
+    return execute(p, sql, args);
   }
   executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number> {
     const p = ctx ? ctx : this.client;
@@ -214,12 +213,13 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
             c += res.rowCount;
           }
         }
-        await client.query("commit");
-        client.release();
       }
+      await client.query("commit");
+      client.release();
       return c;
     } catch (e) {
       await client.query("rollback");
+      client.release()
       throw e;
     }
   } else {
@@ -460,32 +460,6 @@ export function getMapField(name: string, mp?: StringMap): string {
 export function isEmpty(s: string): boolean {
   return !(s && s.length > 0);
 }
-/*
-// tslint:disable-next-line:max-classes-per-file
-export class StringRepository {
-  constructor(protected pool: Pool, public table: string, public column: string) {
-    this.load = this.load.bind(this);
-    this.save = this.save.bind(this);
-  }
-  load(key: string, max: number): Promise<string[]> {
-    const s = `select ${this.column} from ${this.table} where ${this.column} ilike $1 order by ${this.column} fetch next ${max} rows only`;
-    return query(this.pool, s, ['' + key + '%']).then(arr => {
-      return arr.map(i => (i as any)[this.column] as string);
-    });
-  }
-  save(values: string[]): Promise<number> {
-    if (!values || values.length === 0) {
-      return Promise.resolve(0);
-    }
-    const arr: string[] = [];
-    for (let i = 1; i <= values.length; i++) {
-      arr.push('($' + i + ')');
-    }
-    const s = `insert into ${this.table}(${this.column})values${arr.join(',')} on conflict do nothing`;
-    return execute(this.pool, s, values);
-  }
-}
-*/
 export function version(attrs: Attributes): Attribute | undefined {
   const ks = Object.keys(attrs);
   for (const k of ks) {
