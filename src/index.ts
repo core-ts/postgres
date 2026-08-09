@@ -72,7 +72,7 @@ export class PoolManager implements DB {
     const p = ctx ? ctx : this.pool;
     return queryOne(p, sql, args, m, bools);
   }
-  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T> {
+  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T | null> {
     const p = ctx ? ctx : this.pool;
     return executeScalar<T>(p, sql, args);
   }
@@ -120,7 +120,7 @@ export class PoolClientManager implements Transaction {
     const p = ctx ? ctx : this.client;
     return queryOne(p, sql, args, m, bools);
   }
-  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T> {
+  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T | null> {
     const p = ctx ? ctx : this.client;
     return executeScalar<T>(p, sql, args);
   }
@@ -168,7 +168,7 @@ export function queryOne<T>(client: Query, sql: string, args?: any[], m?: String
     return r && r.length > 0 ? r[0] : null;
   });
 }
-export function executeScalar<T>(client: Query, sql: string, args?: any[]): Promise<T> {
+export function executeScalar<T>(client: Query, sql: string, args?: any[]): Promise<T | null> {
   return queryOne<T>(client, sql, args).then((r) => {
     if (!r) {
       return null;
@@ -179,7 +179,7 @@ export function executeScalar<T>(client: Query, sql: string, args?: any[]): Prom
   });
 }
 export function count(client: Query, sql: string, args?: any[]): Promise<number> {
-  return executeScalar<number>(client, sql, args);
+  return executeScalar<number>(client, sql, args).then(res => res !== null ? res : 0);
 }
 
 export function executeBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
