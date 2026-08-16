@@ -179,7 +179,7 @@ export function executeScalar<T>(client: Query, sql: string, args?: any[]): Prom
   });
 }
 export function count(client: Query, sql: string, args?: any[]): Promise<number> {
-  return executeScalar<number>(client, sql, args).then(res => res !== null ? res : 0);
+  return executeScalar<number>(client, sql, args).then((res) => (res !== null ? res : 0));
 }
 
 export function executeBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
@@ -219,7 +219,7 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
       return c;
     } catch (e) {
       await client.query("rollback");
-      client.release()
+      client.release();
       throw e;
     }
   } else {
@@ -473,27 +473,18 @@ export function version(attrs: Attributes): Attribute | undefined {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class PostgreSQLWriter<T> {
-  pool?: Pool;
   version?: string;
-  execute?: (sql: string, args?: any[]) => Promise<number>;
-  map?: (v: T) => T;
   param?: (i: number) => string;
   constructor(
-    pool: Pool | ((sql: string, args?: any[]) => Promise<number>),
+    protected pool: Pool,
     protected table: string,
     protected attributes: Attributes,
     protected oneIfSuccess?: boolean,
-    toDB?: (v: T) => T,
+    protected map?: (v: T) => T,
     buildParam?: (i: number) => string,
   ) {
     this.write = this.write.bind(this);
-    if (typeof pool === "function") {
-      this.execute = pool;
-    } else {
-      this.pool = pool;
-    }
-    this.param = buildParam;
-    this.map = toDB;
+    this.param = buildParam ? buildParam : param;
     const x = version(attributes);
     if (x) {
       this.version = x.name;
@@ -509,18 +500,10 @@ export class PostgreSQLWriter<T> {
     }
     const stmt = buildToSave(obj2, this.table, this.attributes, this.version, this.param);
     if (stmt.query) {
-      if (this.execute) {
-        if (this.oneIfSuccess) {
-          return this.execute(stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0));
-        } else {
-          return this.execute(stmt.query, stmt.params);
-        }
+      if (this.oneIfSuccess) {
+        return execute(this.pool, stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0));
       } else {
-        if (this.oneIfSuccess) {
-          return execute(this.pool as any, stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0));
-        } else {
-          return execute(this.pool as any, stmt.query, stmt.params);
-        }
+        return execute(this.pool, stmt.query, stmt.params);
       }
     } else {
       return Promise.resolve(0);
@@ -530,35 +513,22 @@ export class PostgreSQLWriter<T> {
 // tslint:disable-next-line:max-classes-per-file
 export class PostgreSQLStreamWriter<T> {
   list: T[] = [];
-  size = 0;
-  pool?: Pool;
   version?: string;
-  executeBatch?: (statements: Statement[]) => Promise<number>;
-  map?: (v: T) => T;
   param?: (i: number) => string;
   constructor(
-    con: Pool | ((statements: Statement[]) => Promise<number>),
+    protected pool: Pool,
     protected table: string,
     protected attributes: Attributes,
-    size?: number,
-    toDB?: (v: T) => T,
+    protected size: number = 5000,
+    protected map?: (v: T) => T,
     buildParam?: (i: number) => string,
   ) {
     this.write = this.write.bind(this);
     this.flush = this.flush.bind(this);
-    if (typeof con === "function") {
-      this.executeBatch = con;
-    } else {
-      this.pool = con;
-    }
-    this.param = buildParam;
-    this.map = toDB;
+    this.param = buildParam ? buildParam : param;
     const x = version(attributes);
     if (x) {
       this.version = x.name;
-    }
-    if (size) {
-      this.size = size;
     }
   }
   write(obj: T): Promise<number> {
@@ -585,17 +555,10 @@ export class PostgreSQLStreamWriter<T> {
       const total = this.list.length;
       const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.version, this.param);
       if (stmt.length > 0) {
-        if (this.executeBatch) {
-          return this.executeBatch(stmt).then((r) => {
-            this.list = [];
-            return total;
-          });
-        } else {
-          return executeBatch(this.pool as any, stmt).then((r) => {
-            this.list = [];
-            return total;
-          });
-        }
+        return executeBatch(this.pool, stmt).then((r) => {
+          this.list = [];
+          return total;
+        });
       } else {
         return Promise.resolve(0);
       }
@@ -604,26 +567,17 @@ export class PostgreSQLStreamWriter<T> {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class PostgreSQLBatchWriter<T> {
-  pool?: Pool;
   version?: string;
-  execute?: (statements: Statement[]) => Promise<number>;
-  map?: (v: T) => T;
   param?: (i: number) => string;
   constructor(
-    pool: Pool | ((statements: Statement[]) => Promise<number>),
+    protected pool: Pool,
     protected table: string,
     protected attributes: Attributes,
-    toDB?: (v: T) => T,
+    protected map?: (v: T) => T,
     buildParam?: (i: number) => string,
   ) {
     this.write = this.write.bind(this);
-    if (typeof pool === "function") {
-      this.execute = pool;
-    } else {
-      this.pool = pool;
-    }
-    this.param = buildParam;
-    this.map = toDB;
+    this.param = buildParam ? buildParam : param;
     const x = version(attributes);
     if (x) {
       this.version = x.name;
@@ -643,11 +597,7 @@ export class PostgreSQLBatchWriter<T> {
     }
     const stmts = buildToSaveBatch(list, this.table, this.attributes, this.version, this.param);
     if (stmts.length > 0) {
-      if (this.execute) {
-        return this.execute(stmts);
-      } else {
-        return executeBatch(this.pool as any, stmts);
-      }
+      return executeBatch(this.pool, stmts);
     } else {
       return Promise.resolve(0);
     }
@@ -730,7 +680,7 @@ export class PostgreSQLChecker implements HealthChecker {
 }
 
 // tslint:disable-next-line:max-classes-per-file
-export class StringService {
+export class StringAdapter {
   constructor(
     protected table: string,
     protected field: string,
@@ -771,7 +721,7 @@ export class StringService {
     }
   }
 }
-export const StringRepository = StringService;
+export const StringRepository = StringAdapter;
 
 export interface MinDB {
   param(i: number): string;

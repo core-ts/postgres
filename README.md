@@ -489,7 +489,7 @@ const statements = [
     }
 ]
 
-const affected = await db.executeBatch(statements)
+const affectedRows = await db.executeBatch(statements)
 ```
 
 When multiple statements are supplied through `PoolManager`, the batch is executed using a transaction.
