@@ -56,29 +56,23 @@ export class PoolManager implements DB {
       throw err
     }
   }
-  execute(sql: string, args?: any[], ctx?: any): Promise<number> {
-    const p = ctx ? ctx : this.pool
-    return execute(p, sql, args)
+  execute(sql: string, args?: any[]): Promise<number> {
+    return execute(this.pool, sql, args)
   }
-  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number> {
-    const p = ctx ? ctx : this.pool
-    return executeBatch(p, statements, firstSuccess)
+  executeBatch(statements: Statement[], firstSuccess?: boolean): Promise<number> {
+    return executeBatch(this.pool, statements, firstSuccess)
   }
-  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]> {
-    const p = ctx ? ctx : this.pool
-    return query(p, sql, args, m, bools)
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
+    return query(this.pool, sql, args, m, bools)
   }
-  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T | null> {
-    const p = ctx ? ctx : this.pool
-    return queryOne(p, sql, args, m, bools)
+  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T | null> {
+    return queryOne(this.pool, sql, args, m, bools)
   }
-  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T | null> {
-    const p = ctx ? ctx : this.pool
-    return executeScalar<T>(p, sql, args)
+  executeScalar<T>(sql: string, args?: any[]): Promise<T | null> {
+    return executeScalar<T>(this.pool, sql, args)
   }
-  count(sql: string, args?: any[], ctx?: any): Promise<number> {
-    const p = ctx ? ctx : this.pool
-    return count(p, sql, args)
+  count(sql: string, args?: any[]): Promise<number> {
+    return count(this.pool, sql, args)
   }
 }
 // tslint:disable-next-line:max-classes-per-file
@@ -104,29 +98,23 @@ export class PoolClientManager implements Transaction {
     await this.client.query("rollback")
     this.client.release()
   }
-  execute(sql: string, args?: any[], ctx?: any): Promise<number> {
-    const p = ctx ? ctx : this.client
-    return execute(p, sql, args)
+  execute(sql: string, args?: any[]): Promise<number> {
+    return execute(this.client, sql, args)
   }
-  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number> {
-    const p = ctx ? ctx : this.client
-    return executeBatchWithClient(p, statements, firstSuccess)
+  executeBatch(statements: Statement[], firstSuccess?: boolean): Promise<number> {
+    return executeBatchWithClient(this.client, statements, firstSuccess)
   }
-  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]> {
-    const p = ctx ? ctx : this.client
-    return query(p, sql, args, m, bools)
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
+    return query(this.client, sql, args, m, bools)
   }
-  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T | null> {
-    const p = ctx ? ctx : this.client
-    return queryOne(p, sql, args, m, bools)
+  queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T | null> {
+    return queryOne(this.client, sql, args, m, bools)
   }
-  executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T | null> {
-    const p = ctx ? ctx : this.client
-    return executeScalar<T>(p, sql, args)
+  executeScalar<T>(sql: string, args?: any[]): Promise<T | null> {
+    return executeScalar<T>(this.client, sql, args)
   }
-  count(sql: string, args?: any[], ctx?: any): Promise<number> {
-    const p = ctx ? ctx : this.client
-    return count(p, sql, args)
+  count(sql: string, args?: any[]): Promise<number> {
+    return count(this.client, sql, args)
   }
 }
 function buildError(err: any): any {
@@ -276,8 +264,8 @@ export async function executeBatchWithClient(client: PoolClient, statements: Sta
     return c
   }
 }
-export function save<T>(client: Query | ((sql: string, args?: any[]) => Promise<number>), obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSave(obj, table, attrs, ver, buildParam)
+export function save<T>(client: Query | ((sql: string, args?: any[]) => Promise<number>), obj: T, table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
+  const s = buildToSave(obj, table, attrs, buildParam)
   if (!s.query) {
     return Promise.resolve(-1)
   }
@@ -287,16 +275,16 @@ export function save<T>(client: Query | ((sql: string, args?: any[]) => Promise<
     return execute(client, s.query, s.params)
   }
 }
-export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSaveBatch(objs, table, attrs, ver, buildParam)
+export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
+  const s = buildToSaveBatch(objs, table, attrs, buildParam)
   if (s.length === 0) {
     return Promise.resolve(0)
   } else {
     return executeBatch(pool, s)
   }
 }
-export function saveBatchWithClient<T>(client: PoolClient, objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSaveBatch(objs, table, attrs, ver, buildParam)
+export function saveBatchWithClient<T>(client: PoolClient, objs: T[], table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
+  const s = buildToSaveBatch(objs, table, attrs, buildParam)
   if (s.length === 0) {
     return Promise.resolve(0)
   } else {
@@ -460,21 +448,9 @@ export function getMapField(name: string, mp?: StringMap): string {
 export function isEmpty(s: string): boolean {
   return !(s && s.length > 0)
 }
-export function version(attrs: Attributes): Attribute | undefined {
-  const ks = Object.keys(attrs)
-  for (const k of ks) {
-    const attr = attrs[k]
-    if (attr.version) {
-      attr.name = k
-      return attr
-    }
-  }
-  return undefined
-}
 // tslint:disable-next-line:max-classes-per-file
 export class PostgreSQLWriter<T> {
-  version?: string
-  param?: (i: number) => string
+  protected param?: (i: number) => string
   constructor(
     protected pool: Pool,
     protected table: string,
@@ -485,10 +461,6 @@ export class PostgreSQLWriter<T> {
   ) {
     this.write = this.write.bind(this)
     this.param = buildParam ? buildParam : param
-    const x = version(attributes)
-    if (x) {
-      this.version = x.name
-    }
   }
   write(obj: T): Promise<number> {
     if (!obj) {
@@ -498,7 +470,7 @@ export class PostgreSQLWriter<T> {
     if (this.map) {
       obj2 = this.map(obj)
     }
-    const stmt = buildToSave(obj2, this.table, this.attributes, this.version, this.param)
+    const stmt = buildToSave(obj2, this.table, this.attributes, this.param)
     if (stmt.query) {
       if (this.oneIfSuccess) {
         return execute(this.pool, stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
@@ -512,9 +484,8 @@ export class PostgreSQLWriter<T> {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class PostgreSQLStreamWriter<T> {
-  list: T[] = []
-  version?: string
-  param?: (i: number) => string
+  protected list: T[] = []
+  protected param?: (i: number) => string
   constructor(
     protected pool: Pool,
     protected table: string,
@@ -526,10 +497,6 @@ export class PostgreSQLStreamWriter<T> {
     this.write = this.write.bind(this)
     this.flush = this.flush.bind(this)
     this.param = buildParam ? buildParam : param
-    const x = version(attributes)
-    if (x) {
-      this.version = x.name
-    }
   }
   write(obj: T): Promise<number> {
     if (!obj) {
@@ -553,13 +520,14 @@ export class PostgreSQLStreamWriter<T> {
       return Promise.resolve(0)
     } else {
       const total = this.list.length
-      const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.version, this.param)
+      const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.param)
       if (stmt.length > 0) {
         return executeBatch(this.pool, stmt).then((r) => {
           this.list = []
           return total
         })
       } else {
+        this.list = []
         return Promise.resolve(0)
       }
     }
@@ -567,8 +535,7 @@ export class PostgreSQLStreamWriter<T> {
 }
 // tslint:disable-next-line:max-classes-per-file
 export class PostgreSQLBatchWriter<T> {
-  version?: string
-  param?: (i: number) => string
+  protected param?: (i: number) => string
   constructor(
     protected pool: Pool,
     protected table: string,
@@ -578,10 +545,6 @@ export class PostgreSQLBatchWriter<T> {
   ) {
     this.write = this.write.bind(this)
     this.param = buildParam ? buildParam : param
-    const x = version(attributes)
-    if (x) {
-      this.version = x.name
-    }
   }
   write(objs: T[]): Promise<number> {
     if (!objs || objs.length === 0) {
@@ -595,7 +558,7 @@ export class PostgreSQLBatchWriter<T> {
         list.push(obj2)
       }
     }
-    const stmts = buildToSaveBatch(list, this.table, this.attributes, this.version, this.param)
+    const stmts = buildToSaveBatch(list, this.table, this.attributes, this.param)
     if (stmts.length > 0) {
       return executeBatch(this.pool, stmts)
     } else {
@@ -684,16 +647,12 @@ export class StringAdapter {
   constructor(
     protected table: string,
     protected field: string,
-    queryData: <T>(sql: string, args?: any[]) => Promise<T[]>,
-    execute: (sql: string, args?: any[]) => Promise<number>,
+    protected query: <T>(sql: string, args?: any[]) => Promise<T[]>,
+    protected execute: (sql: string, args?: any[]) => Promise<number>,
   ) {
-    this.query = queryData
-    this.execute = execute
     this.load = this.load.bind(this)
     this.save = this.save.bind(this)
   }
-  protected query: <T>(sql: string, args?: any[]) => Promise<T[]>
-  protected execute: (sql: string, args?: any[]) => Promise<number>
   load(keyword: string, max?: number): Promise<string[]> {
     const m = max && max > 0 ? max : 20
     const k = keyword + "%"
@@ -725,7 +684,7 @@ export const StringRepository = StringAdapter
 
 export interface MinDB {
   param(i: number): string
-  execute(sql: string, args?: any[], ctx?: any): Promise<number>
+  execute(sql: string, args?: any[]): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap): Promise<T[]>
 }
 export interface Passcode {
@@ -917,7 +876,7 @@ export class ArrayRepository<ID, T> {
 // tslint:disable-next-line:max-classes-per-file
 export class FollowUserRepository<ID> {
   constructor(
-    protected execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
+    protected execute: (statements: Statement[], firstSuccess?: boolean) => Promise<number>,
     protected followerTable: string,
     protected followerId: string,
     protected follower: string,
@@ -987,7 +946,7 @@ export class FollowUserRepository<ID> {
 }
 export class SqlFollowRepository<ID> {
   constructor(
-    protected execute: (statements: Statement[], firstSuccess?: boolean, ctx?: any) => Promise<number>,
+    protected execute: (statements: Statement[], firstSuccess?: boolean) => Promise<number>,
     protected followerTable: string,
     protected followerId: string,
     protected follower: string,
@@ -1051,8 +1010,8 @@ export interface Reaction {
   reaction: number
 }
 export interface DB2 {
-  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
-  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
+  executeBatch(statements: Statement[], firstSuccess?: boolean): Promise<number>
+  query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]>
 }
 // tslint:disable-next-line:max-classes-per-file
 export class ReactRepository<ID> {

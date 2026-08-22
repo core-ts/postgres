@@ -1,6 +1,6 @@
 {
   "name": "postgres-kit",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "postgres-kit is a lightweight and easy-to-use PostgreSQL client library for Node.js, providing a simple and intuitive API for interacting with PostgreSQL databases.",
   "main": "./lib/index.js",
   "types": "./src/index.ts",

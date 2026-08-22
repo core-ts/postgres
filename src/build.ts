@@ -58,25 +58,33 @@ export function metadata(attrs: Attributes): Metadata {
   }
   return m
 }
-export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string, i?: number): Statement {
-  if (!i) {
+export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildParam?: (i: number) => string, i?: number): Statement {
+  if (i === undefined) {
     i = 1
   }
   if (!buildParam) {
     buildParam = param
   }
+  const meta = metadata(attrs)
+  const pks = meta.keys
+  let isUpdate = true
   const ks = Object.keys(attrs)
-  const pks: Attribute[] = []
   const cols: string[] = []
   const values: string[] = []
   const args: any[] = []
-  let isVersion = false
   const o: any = obj
+  for (const k of pks) {
+    if (k.name) {
+      let v = o[k.name]
+      if (v == null) {
+        isUpdate = false
+      }
+    }
+  }
   for (const k of ks) {
     const attr = attrs[k]
-    attr.name = k
-    if (attr.key) {
-      pks.push(attr)
+    if (!attr) {
+      continue
     }
     let v = o[k]
     if (v == null) {
@@ -85,8 +93,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
     if (v != null && !attr.ignored && !attr.noinsert) {
       const field = attr.column ? attr.column : k
       cols.push(field)
-      if (k === ver) {
-        isVersion = true
+      if (attr.version) {
         values.push(`${1}`)
       } else {
         if (v === "") {
@@ -94,22 +101,14 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
         } else if (typeof v === "number") {
           values.push(toString(v))
         } else if (typeof v === "boolean") {
-          if (attr.true === undefined) {
-            if (v === true) {
-              values.push(`true`)
-            } else {
-              values.push(`false`)
-            }
+          const p = buildParam(i++)
+          values.push(p)
+          if (v === true) {
+            const v2 = attr.true !== undefined ? attr.true : true
+            args.push(v2)
           } else {
-            const p = buildParam(i++)
-            values.push(p)
-            if (v === true) {
-              const v2 = attr.true ? attr.true : `'1'`
-              args.push(v2)
-            } else {
-              const v2 = attr.false && attr.false !== 0 ? attr.false : `'0'`
-              args.push(v2)
-            }
+            const v2 = attr.false !== undefined ? attr.false : false
+            args.push(v2)
           }
         } else {
           const p = buildParam(i++)
@@ -119,13 +118,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
       }
     }
   }
-  if (!isVersion && ver && ver.length > 0) {
-    const attr = attrs[ver]
-    const field = attr.column ? attr.column : ver
-    cols.push(field)
-    values.push(`${1}`)
-  }
-  if (pks.length === 0) {
+  if (isUpdate === false || pks.length === 0) {
     if (cols.length === 0) {
       return { query: "", params: args }
     } else {
@@ -148,21 +141,13 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
           } else if (typeof v === "number") {
             x = toString(v)
           } else if (typeof v === "boolean") {
-            if (attr.true === undefined) {
-              if (v === true) {
-                x = `true`
-              } else {
-                x = `false`
-              }
+            x = buildParam(i++)
+            if (v === true) {
+              const v2 = attr.true !== undefined ? attr.true : true
+              args.push(v2)
             } else {
-              x = buildParam(i++)
-              if (v === true) {
-                const v2 = attr.true ? attr.true : `'1'`
-                args.push(v2)
-              } else {
-                const v2 = attr.false && attr.false !== 0 ? attr.false : `'0'`
-                args.push(v2)
-              }
+              const v2 = attr.false !== undefined ? attr.false : false
+              args.push(v2)
             }
           } else {
             x = buildParam(i++)
@@ -188,15 +173,19 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, ver?: s
     }
   }
 }
-export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes, ver?: string, buildParam?: (i: number) => string): Statement[] {
+export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes, buildParam?: (i: number) => string): Statement[] {
   if (!buildParam) {
     buildParam = param
   }
   const sts: Statement[] = []
   const meta = metadata(attrs)
   const pks = meta.keys
-  if (!pks || pks.length === 0) {
-    return sts
+  const fks: string[] = []
+  for (const pk of pks) {
+    const field = pk.column ? pk.column : pk.name
+    if (field) {
+      fks.push(field)
+    }
   }
   const ks = Object.keys(attrs)
   for (const obj of objs) {
@@ -204,10 +193,21 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
     const cols: string[] = []
     const values: string[] = []
     const args: any[] = []
-    let isVersion = false
+    let isUpdate = true
     const o: any = obj
+    for (const k of pks) {
+      if (k.name) {
+        let v = o[k.name]
+        if (v == null) {
+          isUpdate = false
+        }
+      }
+    }
     for (const k of ks) {
       const attr = attrs[k]
+      if (!attr) {
+        continue
+      }
       let v = o[k]
       if (v == null) {
         v = attr.default
@@ -215,8 +215,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
       if (v != null && !attr.ignored && !attr.noinsert) {
         const field = attr.column ? attr.column : k
         cols.push(field)
-        if (k === ver) {
-          isVersion = true
+        if (attr.version) {
           values.push(`${1}`)
         } else {
           if (v === "") {
@@ -224,22 +223,14 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
           } else if (typeof v === "number") {
             values.push(toString(v))
           } else if (typeof v === "boolean") {
-            if (attr.true === undefined) {
-              if (v === true) {
-                values.push(`true`)
-              } else {
-                values.push(`false`)
-              }
+            const p = buildParam(i++)
+            values.push(p)
+            if (v === true) {
+              const v2 = attr.true !== undefined ? attr.true : true
+              args.push(v2)
             } else {
-              const p = buildParam(i++)
-              values.push(p)
-              if (v === true) {
-                const v2 = attr.true ? attr.true : `'1'`
-                args.push(v2)
-              } else {
-                const v2 = attr.false && attr.false !== 0 ? attr.false : `'0'`
-                args.push(v2)
-              }
+              const v2 = attr.false !== undefined ? attr.false : false
+              args.push(v2)
             }
           } else {
             const p = buildParam(i++)
@@ -249,66 +240,53 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
         }
       }
     }
-    if (!isVersion && ver && ver.length > 0) {
-      const attr = attrs[ver]
-      const field = attr.column ? attr.column : ver
-      cols.push(field)
-      values.push(`${1}`)
-    }
-    const colSet: string[] = []
-    for (const k of ks) {
-      const v = o[k]
-      if (v !== undefined) {
-        const attr = attrs[k]
-        if (attr && !attr.key && !attr.ignored && k !== ver && !attr.noupdate) {
-          const field = attr.column ? attr.column : k
-          let x: string
-          if (v === null) {
-            x = "null"
-          } else if (v === "") {
-            x = `''`
-          } else if (typeof v === "number") {
-            x = toString(v)
-          } else if (typeof v === "boolean") {
-            if (attr.true === undefined) {
+    if (isUpdate === false || pks.length === 0) {
+      if (cols.length > 0) {
+        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")})`
+        const smt = { query: q, params: args }
+        sts.push(smt)
+      }
+    } else {
+      const colSet: string[] = []
+      for (const k of ks) {
+        const v = o[k]
+        if (v !== undefined) {
+          const attr = attrs[k]
+          if (attr && !attr.key && !attr.ignored && !attr.noupdate) {
+            const field = attr.column ? attr.column : k
+            let x: string
+            if (v === null) {
+              x = "null"
+            } else if (v === "") {
+              x = `''`
+            } else if (typeof v === "number") {
+              x = toString(v)
+            } else if (typeof v === "boolean") {
+              x = buildParam(i++)
               if (v === true) {
-                x = `true`
+                const v2 = attr.true !== undefined ? attr.true : true
+                args.push(v2)
               } else {
-                x = `false`
+                const v2 = attr.false !== undefined ? attr.false : false
+                args.push(v2)
               }
             } else {
               x = buildParam(i++)
-              if (v === true) {
-                const v2 = attr.true ? attr.true : `'1'`
-                args.push(v2)
-              } else {
-                const v2 = attr.false && attr.false !== 0 ? attr.false : `'0'`
-                args.push(v2)
-              }
+              args.push(v)
             }
-          } else {
-            x = buildParam(i++)
-            args.push(v)
+            colSet.push(`${field}=${x}`)
           }
-          colSet.push(`${field}=${x}`)
         }
       }
-    }
-    const fks: string[] = []
-    for (const pk of pks) {
-      const field = pk.column ? pk.column : pk.name
-      if (field) {
-        fks.push(field)
+      if (colSet.length === 0) {
+        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
+        const smt: Statement = { query: q, params: args }
+        sts.push(smt)
+      } else {
+        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do update set ${colSet.join(",")}`
+        const smt: Statement = { query: q, params: args }
+        sts.push(smt)
       }
-    }
-    if (colSet.length === 0) {
-      const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
-      const smt: Statement = { query: q, params: args }
-      sts.push(smt)
-    } else {
-      const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do update set ${colSet.join(",")}`
-      const smt: Statement = { query: q, params: args }
-      sts.push(smt)
     }
   }
   return sts
