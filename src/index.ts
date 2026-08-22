@@ -59,8 +59,8 @@ export class PoolManager implements DB {
   execute(sql: string, args?: any[]): Promise<number> {
     return execute(this.pool, sql, args)
   }
-  executeBatch(statements: Statement[], firstSuccess?: boolean): Promise<number> {
-    return executeBatch(this.pool, statements, firstSuccess)
+  executeBatch(statements: Statement[], requireFirstAffected?: boolean): Promise<number> {
+    return executeBatch(this.pool, statements, requireFirstAffected)
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
     return query(this.pool, sql, args, m, bools)
@@ -101,8 +101,8 @@ export class PoolClientManager implements Transaction {
   execute(sql: string, args?: any[]): Promise<number> {
     return execute(this.client, sql, args)
   }
-  executeBatch(statements: Statement[], firstSuccess?: boolean): Promise<number> {
-    return executeBatchWithClient(this.client, statements, firstSuccess)
+  executeBatch(statements: Statement[], requireFirstAffected?: boolean): Promise<number> {
+    return executeBatchWithClient(this.client, statements, requireFirstAffected)
   }
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]> {
     return query(this.client, sql, args, m, bools)
@@ -170,24 +170,24 @@ export function count(client: Query, sql: string, args?: any[]): Promise<number>
   return executeScalar<number>(client, sql, args).then((res) => (res !== null ? res : 0))
 }
 
-export function executeBatch(pool: Pool, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export function executeBatch(pool: Pool, statements: Statement[], requireFirstAffected?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
     return execute(pool, statements[0].query, toArray(statements[0].params))
   }
   return pool.connect().then((client) => {
-    return executeBatchWithClientTx(client, statements, firstSuccess)
+    return executeBatchWithClientTx(client, statements, requireFirstAffected)
   })
 }
-export async function executeBatchWithClientTx(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export async function executeBatchWithClientTx(client: PoolClient, statements: Statement[], requireFirstAffected?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
     return execute(client, statements[0].query, statements[0].params)
   }
   let c: number = 0
-  if (firstSuccess) {
+  if (requireFirstAffected) {
     try {
       await client.query("begin")
       const result0 = await client.query(statements[0].query, toArray(statements[0].params))
@@ -203,12 +203,12 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
         }
       }
       await client.query("commit")
-      client.release()
       return c
     } catch (e) {
       await client.query("rollback")
-      client.release()
       throw e
+    } finally {
+      client.release()
     }
   } else {
     try {
@@ -222,23 +222,23 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
         }
       }
       await client.query("commit")
-      client.release()
       return c
     } catch (e) {
       await client.query("rollback")
-      client.release()
       throw e
+    } finally {
+      client.release()
     }
   }
 }
-export async function executeBatchWithClient(client: PoolClient, statements: Statement[], firstSuccess?: boolean): Promise<number> {
+export async function executeBatchWithClient(client: PoolClient, statements: Statement[], requireFirstAffected?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
     return Promise.resolve(0)
   } else if (statements.length === 1) {
     return execute(client, statements[0].query, statements[0].params)
   }
   let c = 0
-  if (firstSuccess) {
+  if (requireFirstAffected) {
     const result0 = await client.query(statements[0].query, toArray(statements[0].params))
     if (result0 && result0.rowCount) {
       c = result0.rowCount
@@ -876,7 +876,7 @@ export class ArrayRepository<ID, T> {
 // tslint:disable-next-line:max-classes-per-file
 export class FollowUserRepository<ID> {
   constructor(
-    protected execute: (statements: Statement[], firstSuccess?: boolean) => Promise<number>,
+    protected execute: (statements: Statement[], requireFirstAffected?: boolean) => Promise<number>,
     protected followerTable: string,
     protected followerId: string,
     protected follower: string,
@@ -946,7 +946,7 @@ export class FollowUserRepository<ID> {
 }
 export class SqlFollowRepository<ID> {
   constructor(
-    protected execute: (statements: Statement[], firstSuccess?: boolean) => Promise<number>,
+    protected execute: (statements: Statement[], requireFirstAffected?: boolean) => Promise<number>,
     protected followerTable: string,
     protected followerId: string,
     protected follower: string,
@@ -1010,7 +1010,7 @@ export interface Reaction {
   reaction: number
 }
 export interface DB2 {
-  executeBatch(statements: Statement[], firstSuccess?: boolean): Promise<number>
+  executeBatch(statements: Statement[], requireFirstAffected?: boolean): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[]): Promise<T[]>
 }
 // tslint:disable-next-line:max-classes-per-file

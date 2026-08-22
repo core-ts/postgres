@@ -125,7 +125,7 @@ interface Executor {
   driver: string
   param(i: number): string
   execute(sql: string, args?: any[], ctx?: any): Promise<number>
-  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
+  executeBatch(statements: Statement[], requireFirstAffected?: boolean, ctx?: any): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
   queryOne<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T | null>
   executeScalar<T>(sql: string, args?: any[], ctx?: any): Promise<T | null>
@@ -524,15 +524,15 @@ ROLLBACK
 release client
 ```
 
-## `firstSuccess`
+## `requireFirstAffected`
 
-`executeBatch()` supports an optional `firstSuccess` flag.
+`executeBatch()` supports an optional `requireFirstAffected` flag.
 
 ```ts
 await db.executeBatch(statements, true)
 ```
 
-When `firstSuccess` is `true`, the first statement determines whether the remaining statements are executed.
+When `requireFirstAffected` is `true`, the first statement determines whether the remaining statements are executed.
 
 If the first statement affects at least one row:
 
@@ -710,7 +710,7 @@ export interface MinDB {
   driver: string
   param(i: number): string
   execute(sql: string, args?: any[], ctx?: any): Promise<number>
-  executeBatch(statements: Statement[], firstSuccess?: boolean, ctx?: any): Promise<number>
+  executeBatch(statements: Statement[], requireFirstAffected?: boolean, ctx?: any): Promise<number>
   query<T>(sql: string, args?: any[], m?: StringMap, bools?: Attribute[], ctx?: any): Promise<T[]>
 }
 ```
