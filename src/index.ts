@@ -171,9 +171,14 @@ export function executeBatch(pool: Pool, statements: Statement[], requireFirstAf
 }
 export async function executeBatchWithClientTx(client: PoolClient, statements: Statement[], requireFirstAffected?: boolean): Promise<number> {
   if (!statements || statements.length === 0) {
-    return Promise.resolve(0)
+    client.release()
+    return 0
   } else if (statements.length === 1) {
-    return execute(client, statements[0].query, statements[0].params)
+    try {
+      return await execute(client, statements[0].query, statements[0].params)
+    } finally {
+      client.release()
+    }
   }
   let c: number = 0
   if (requireFirstAffected) {
@@ -274,7 +279,7 @@ export async function executeBatchWithClient(client: PoolClient, statements: Sta
 export function save<T>(client: Query | ((sql: string, args?: any[]) => Promise<number>), obj: T, table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
   const s = buildToSave(obj, table, attrs, buildParam)
   if (!s.query) {
-    return Promise.resolve(-1)
+    return Promise.resolve(0)
   }
   if (typeof client === "function") {
     return client(s.query, s.params)
@@ -467,7 +472,7 @@ export class PostgreSQLWriter<T> {
     this.param = buildParam ? buildParam : param
   }
   write(obj: T): Promise<number> {
-    if (!obj) {
+    if (obj == null) {
       return Promise.resolve(0)
     }
     let obj2: NonNullable<T> | T = obj
@@ -487,7 +492,7 @@ export class PostgreSQLWriter<T> {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class PostgreSQLStreamWriter<T> {
+export class BufferedBatchWriter<T> {
   protected list: T[] = []
   protected param?: (i: number) => string
   constructor(

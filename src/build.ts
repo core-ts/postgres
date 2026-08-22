@@ -127,6 +127,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
     }
   } else {
     const colSet: string[] = []
+    let ver: string | null = null
     for (const k of ks) {
       const v = o[k]
       if (v !== undefined) {
@@ -134,24 +135,29 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
         if (attr && !attr.key && !attr.ignored && !attr.noupdate) {
           const field = attr.column ? attr.column : k
           let x: string
-          if (v === null) {
-            x = "null"
-          } else if (v === "") {
-            x = `''`
-          } else if (typeof v === "number") {
-            x = toString(v)
-          } else if (typeof v === "boolean") {
-            x = buildParam(i++)
-            if (v === true) {
-              const v2 = attr.true !== undefined ? attr.true : true
-              args.push(v2)
-            } else {
-              const v2 = attr.false !== undefined ? attr.false : false
-              args.push(v2)
-            }
+          if (attr.version) {
+            ver = k
+            x = `${field} + 1`
           } else {
-            x = buildParam(i++)
-            args.push(v)
+            if (v === null) {
+              x = "null"
+            } else if (v === "") {
+              x = `''`
+            } else if (typeof v === "number") {
+              x = toString(v)
+            } else if (typeof v === "boolean") {
+              x = buildParam(i++)
+              if (v === true) {
+                const v2 = attr.true !== undefined ? attr.true : true
+                args.push(v2)
+              } else {
+                const v2 = attr.false !== undefined ? attr.false : false
+                args.push(v2)
+              }
+            } else {
+              x = buildParam(i++)
+              args.push(v)
+            }
           }
           colSet.push(`${field}=${x}`)
         }
@@ -164,12 +170,58 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
         fks.push(field)
       }
     }
-    if (colSet.length === 0) {
-      const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
-      return { query: q, params: args }
+    if (cols.length > 0) {
+      if (colSet.length === 0) {
+        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
+        return { query: q, params: args }
+      } else {
+        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do update set ${colSet.join(",")}`
+        return { query: q, params: args }
+      }
     } else {
-      const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do update set ${colSet.join(",")}`
-      return { query: q, params: args }
+      const colQuery: string[] = []
+      if (colSet.length === 0) {
+        return { query: "", params: args }
+      } else {
+        for (const pk of pks) {
+          const na = pk.name ? pk.name : ""
+          const attr = attrs[na]
+          const field = attr.column ? attr.column : pk.name
+          const v = o[na]
+          let x: string
+          if (v === "") {
+            x = `''`
+          } else if (typeof v === "number") {
+            x = toString(v)
+          } else {
+            x = buildParam(i++)
+            if (typeof v === "boolean") {
+              if (v === true) {
+                const v2 = attr.true ? "" + attr.true : true
+                args.push(v2)
+              } else {
+                const v2 = attr.false ? "" + attr.false : false
+                args.push(v2)
+              }
+            } else {
+              args.push(v)
+            }
+          }
+          colQuery.push(`${field}=${x}`)
+        }
+        if (ver && ver.length > 0) {
+          const v = o[ver]
+          if (typeof v === "number" && !isNaN(v)) {
+            const attr = attrs[ver]
+            if (attr) {
+              const field = attr.column ? attr.column : ver
+              colQuery.push(`${field}=${v}`)
+            }
+          }
+        }
+        const q = `update ${table} set ${colSet.join(",")} where ${colQuery.join(" and ")}`
+        return { query: q, params: args }
+      }
     }
   }
 }
@@ -248,6 +300,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
       }
     } else {
       const colSet: string[] = []
+      let ver: string | null = null
       for (const k of ks) {
         const v = o[k]
         if (v !== undefined) {
@@ -255,37 +308,87 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
           if (attr && !attr.key && !attr.ignored && !attr.noupdate) {
             const field = attr.column ? attr.column : k
             let x: string
-            if (v === null) {
-              x = "null"
-            } else if (v === "") {
-              x = `''`
-            } else if (typeof v === "number") {
-              x = toString(v)
-            } else if (typeof v === "boolean") {
-              x = buildParam(i++)
-              if (v === true) {
-                const v2 = attr.true !== undefined ? attr.true : true
-                args.push(v2)
-              } else {
-                const v2 = attr.false !== undefined ? attr.false : false
-                args.push(v2)
-              }
+            if (attr.version) {
+              ver = k
+              x = `${field} + 1`
             } else {
-              x = buildParam(i++)
-              args.push(v)
+              if (v === null) {
+                x = "null"
+              } else if (v === "") {
+                x = `''`
+              } else if (typeof v === "number") {
+                x = toString(v)
+              } else if (typeof v === "boolean") {
+                x = buildParam(i++)
+                if (v === true) {
+                  const v2 = attr.true !== undefined ? attr.true : true
+                  args.push(v2)
+                } else {
+                  const v2 = attr.false !== undefined ? attr.false : false
+                  args.push(v2)
+                }
+              } else {
+                x = buildParam(i++)
+                args.push(v)
+              }
             }
             colSet.push(`${field}=${x}`)
           }
         }
       }
-      if (colSet.length === 0) {
-        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
-        const smt: Statement = { query: q, params: args }
-        sts.push(smt)
+      if (cols.length > 0) {
+        if (colSet.length === 0) {
+          const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
+          const smt: Statement = { query: q, params: args }
+          sts.push(smt)
+        } else {
+          const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do update set ${colSet.join(",")}`
+          const smt: Statement = { query: q, params: args }
+          sts.push(smt)
+        }
       } else {
-        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do update set ${colSet.join(",")}`
-        const smt: Statement = { query: q, params: args }
-        sts.push(smt)
+        const colQuery: string[] = []
+        if (colSet.length > 0) {
+          for (const pk of pks) {
+            const na = pk.name ? pk.name : ""
+            const attr = attrs[na]
+            const field = attr.column ? attr.column : pk.name
+            const v = o[na]
+            let x: string
+            if (v === "") {
+              x = `''`
+            } else if (typeof v === "number") {
+              x = toString(v)
+            } else {
+              x = buildParam(i++)
+              if (typeof v === "boolean") {
+                if (v === true) {
+                  const v2 = attr.true ? "" + attr.true : true
+                  args.push(v2)
+                } else {
+                  const v2 = attr.false ? "" + attr.false : false
+                  args.push(v2)
+                }
+              } else {
+                args.push(v)
+              }
+            }
+            colQuery.push(`${field}=${x}`)
+          }
+          if (ver && ver.length > 0) {
+            const v = o[ver]
+            if (typeof v === "number" && !isNaN(v)) {
+              const attr = attrs[ver]
+              if (attr) {
+                const field = attr.column ? attr.column : ver
+                colQuery.push(`${field}=${v}`)
+              }
+            }
+          }
+          const q = `update ${table} set ${colSet.join(",")} where ${colQuery.join(" and ")}`
+          const smt: Statement = { query: q, params: args }
+          sts.push(smt)
+        }
       }
     }
   }
