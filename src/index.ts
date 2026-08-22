@@ -9,23 +9,6 @@ export * from "./metadata"
 export class resource {
   static string?: boolean
 }
-
-export interface Config {
-  connectionString?: string | undefined
-  host?: string | undefined
-  port?: number
-  server?: string | undefined
-  database?: string | undefined
-  user?: string | undefined
-  password?: string | undefined
-  max?: number | undefined
-  min?: number | undefined
-  idleTimeoutMillis?: number | undefined
-}
-export function createPool(conf: Config): Pool {
-  const pool = new Pool(conf)
-  return pool
-}
 // tslint:disable-next-line:max-classes-per-file
 export class PoolManager implements DB {
   constructor(protected pool: Pool) {
@@ -36,6 +19,7 @@ export class PoolManager implements DB {
     this.queryOne = this.queryOne.bind(this)
     this.executeScalar = this.executeScalar.bind(this)
     this.count = this.count.bind(this)
+    this.beginTransaction = this.beginTransaction.bind(this)
   }
   driver = "postgres"
   param(i: number): string {
@@ -85,6 +69,8 @@ export class PoolClientManager implements Transaction {
     this.queryOne = this.queryOne.bind(this)
     this.executeScalar = this.executeScalar.bind(this)
     this.count = this.count.bind(this)
+    this.commit = this.commit.bind(this)
+    this.rollback = this.rollback.bind(this)
   }
   driver = "postgres"
   param(i: number): string {
@@ -95,8 +81,11 @@ export class PoolClientManager implements Transaction {
     this.client.release()
   }
   async rollback(): Promise<void> {
-    await this.client.query("rollback")
-    this.client.release()
+    try {
+      await this.client.query("rollback")
+    } finally {
+      this.client.release()
+    }
   }
   execute(sql: string, args?: any[]): Promise<number> {
     return execute(this.client, sql, args)
@@ -167,7 +156,7 @@ export function executeScalar<T>(client: Query, sql: string, args?: any[]): Prom
   })
 }
 export function count(client: Query, sql: string, args?: any[]): Promise<number> {
-  return executeScalar<number>(client, sql, args).then((res) => (res !== null ? res : 0))
+  return executeScalar<number>(client, sql, args).then((res) => (res !== null ? Number(res) : 0))
 }
 
 export function executeBatch(pool: Pool, statements: Statement[], requireFirstAffected?: boolean): Promise<number> {
@@ -188,8 +177,10 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
   }
   let c: number = 0
   if (requireFirstAffected) {
+    let started = false
     try {
       await client.query("begin")
+      started = true
       const result0 = await client.query(statements[0].query, toArray(statements[0].params))
       if (result0 && result0.rowCount) {
         c = result0.rowCount
@@ -205,14 +196,23 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
       await client.query("commit")
       return c
     } catch (e) {
-      await client.query("rollback")
+      if (started) {
+        try {
+          await client.query("rollback")
+        } catch {
+          // preserve original error
+        }
+      }
+      buildError(e)
       throw e
     } finally {
       client.release()
     }
   } else {
+    let started = false
     try {
       await client.query("begin")
+      started = true
       const l = statements.length
       for (let j = 0; j < l; j++) {
         const item = statements[j]
@@ -224,7 +224,14 @@ export async function executeBatchWithClientTx(client: PoolClient, statements: S
       await client.query("commit")
       return c
     } catch (e) {
-      await client.query("rollback")
+      if (started) {
+        try {
+          await client.query("rollback")
+        } catch {
+          // preserve original error
+        }
+      }
+      buildError(e)
       throw e
     } finally {
       client.release()
@@ -394,10 +401,7 @@ export function mapArray<T>(results: T[], m?: StringMap): T[] {
     const obj2: any = {}
     const keys = Object.keys(obj)
     for (const key of keys) {
-      let k0 = m[key]
-      if (!k0) {
-        k0 = key
-      }
+      const k0 = m[key] !== undefined ? m[key] : key
       obj2[k0] = obj[key]
     }
     objs.push(obj2)
