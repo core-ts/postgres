@@ -79,7 +79,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, pks?: A
       }
     }
   }
-  
+
   let isUpdate = true
   let isVersion = false
   const cols: string[] = []
@@ -100,7 +100,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, pks?: A
       continue
     }
     let v = o[k]
-    if (v == null) {
+    if (v == null && attr.default !== undefined) {
       v = attr.default
     }
     if (v != null && !attr.ignored && !attr.noinsert) {
