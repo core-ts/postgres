@@ -119,12 +119,12 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
     }
   }
   const fks: string[] = []
-    for (const pk of pks) {
-      const field = pk.column ? pk.column : pk.name
-      if (field) {
-        fks.push(field)
-      }
+  for (const pk of pks) {
+    const field = pk.column ? pk.column : pk.name
+    if (field) {
+      fks.push(field)
     }
+  }
   if (isUpdate === false || pks.length === 0) {
     if (cols.length === 0) {
       return { query: "", params: args }
@@ -151,7 +151,9 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
             ver = k
             x = `${table}.${field} + 1`
           } else {
-            if (v === "") {
+            if (v === null) {
+              x = "null"
+            } else if (v === "") {
               x = `''`
             } else if (typeof v === "number") {
               x = toString(v)
@@ -200,10 +202,10 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
             x = buildParam(i++)
             if (typeof v === "boolean") {
               if (v === true) {
-                const v2 = attr.true ? "" + attr.true : true
+                const v2 = attr.true !== undefined ? attr.true : true
                 args.push(v2)
               } else {
-                const v2 = attr.false ? "" + attr.false : false
+                const v2 = attr.false !== undefined ? attr.false : false
                 args.push(v2)
               }
             } else {
@@ -319,7 +321,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
             let x: string
             if (attr.version) {
               ver = k
-              x = `${field} + 1`
+              x = `${table}.${field} + 1`
             } else {
               if (v === null) {
                 x = "null"
@@ -372,10 +374,10 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
               x = buildParam(i++)
               if (typeof v === "boolean") {
                 if (v === true) {
-                  const v2 = attr.true ? "" + attr.true : true
+                  const v2 = attr.true !== undefined ? attr.true : true
                   args.push(v2)
                 } else {
-                  const v2 = attr.false ? "" + attr.false : false
+                  const v2 = attr.false !== undefined ? attr.false : false
                   args.push(v2)
                 }
               } else {

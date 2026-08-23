@@ -107,7 +107,7 @@ export class PoolClientManager implements Transaction {
   }
 }
 function buildError(err: any): any {
-  if (err.code === "23505") {
+  if (err && typeof err === "object" && err.code === "23505") {
     err.error = "duplicate"
   }
   return err
