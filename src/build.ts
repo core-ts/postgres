@@ -118,12 +118,24 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
       }
     }
   }
+  const fks: string[] = []
+    for (const pk of pks) {
+      const field = pk.column ? pk.column : pk.name
+      if (field) {
+        fks.push(field)
+      }
+    }
   if (isUpdate === false || pks.length === 0) {
     if (cols.length === 0) {
       return { query: "", params: args }
     } else {
-      const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")})`
-      return { query: q, params: args }
+      if (pks.length === 0) {
+        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")})`
+        return { query: q, params: args }
+      } else {
+        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
+        return { query: q, params: args }
+      }
     }
   } else {
     const colSet: string[] = []
@@ -159,13 +171,6 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
           }
           colSet.push(`${field}=${x}`)
         }
-      }
-    }
-    const fks: string[] = []
-    for (const pk of pks) {
-      const field = pk.column ? pk.column : pk.name
-      if (field) {
-        fks.push(field)
       }
     }
     if (cols.length > 0) {
@@ -292,9 +297,15 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
     }
     if (isUpdate === false || pks.length === 0) {
       if (cols.length > 0) {
-        const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")})`
-        const smt = { query: q, params: args }
-        sts.push(smt)
+        if (pks.length === 0) {
+          const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")})`
+          const smt = { query: q, params: args }
+          sts.push(smt)
+        } else {
+          const q = `insert into ${table}(${cols.join(",")})values(${values.join(",")}) on conflict(${fks.join(",")}) do nothing`
+          const smt: Statement = { query: q, params: args }
+          sts.push(smt)
+        }
       }
     } else {
       const colSet: string[] = []
