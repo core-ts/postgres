@@ -58,17 +58,31 @@ export function metadata(attrs: Attributes): Metadata {
   }
   return m
 }
-export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildParam?: (i: number) => string, i?: number): Statement {
+export function buildToSave<T>(obj: T, table: string, attrs: Attributes, pks?: Attribute[], ver?: string, buildParam?: (i: number) => string, i?: number): Statement {
   if (i === undefined) {
     i = 1
   }
   if (!buildParam) {
     buildParam = param
   }
-  const meta = metadata(attrs)
-  const pks = meta.keys
-  let isUpdate = true
   const ks = Object.keys(attrs)
+  if (!pks) {
+    pks = []
+    for (const k of ks) {
+      const attr = attrs[k]
+      attr.name = k
+
+      if (attr.key) {
+        pks.push(attr)
+      }
+      if (attr.version) {
+        ver = k
+      }
+    }
+  }
+  
+  let isUpdate = true
+  let isVersion = false
   const cols: string[] = []
   const values: string[] = []
   const args: any[] = []
@@ -93,7 +107,8 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
     if (v != null && !attr.ignored && !attr.noinsert) {
       const field = attr.column ? attr.column : k
       cols.push(field)
-      if (attr.version) {
+      if (k === ver) {
+        isVersion = true
         values.push(`${1}`)
       } else {
         if (v === "") {
@@ -118,6 +133,14 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
       }
     }
   }
+  if (cols.length > 0 && ver && isVersion === false) {
+    const attr = attrs[ver]
+    if (attr) {
+      const field = attr.column ? attr.column : ver
+      cols.push(field)
+      values.push('1')
+    }
+  }
   const fks: string[] = []
   for (const pk of pks) {
     const field = pk.column ? pk.column : pk.name
@@ -139,7 +162,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
     }
   } else {
     const colSet: string[] = []
-    let ver: string | null = null
+    let version: string | null = null
     for (const k of ks) {
       const v = o[k]
       if (v !== undefined) {
@@ -148,7 +171,7 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
           const field = attr.column ? attr.column : k
           let x: string
           if (attr.version) {
-            ver = k
+            version = k
             x = `${table}.${field} + 1`
           } else {
             if (v === null) {
@@ -214,12 +237,12 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
           }
           colQuery.push(`${field}=${x}`)
         }
-        if (ver && ver.length > 0) {
-          const v = o[ver]
+        if (version && version.length > 0) {
+          const v = o[version]
           if (typeof v === "number" && !isNaN(v)) {
-            const attr = attrs[ver]
+            const attr = attrs[version]
             if (attr) {
-              const field = attr.column ? attr.column : ver
+              const field = attr.column ? attr.column : version
               colQuery.push(`${field}=${v}`)
             }
           }
@@ -230,13 +253,26 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
     }
   }
 }
-export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes, buildParam?: (i: number) => string): Statement[] {
+export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes, pks?: Attribute[], ver?: string, buildParam?: (i: number) => string): Statement[] {
   if (!buildParam) {
     buildParam = param
   }
   const sts: Statement[] = []
-  const meta = metadata(attrs)
-  const pks = meta.keys
+  const ks = Object.keys(attrs)
+  if (!pks) {
+    pks = []
+    for (const k of ks) {
+      const attr = attrs[k]
+      attr.name = k
+
+      if (attr.key) {
+        pks.push(attr)
+      }
+      if (attr.version) {
+        ver = k
+      }
+    }
+  }
   const fks: string[] = []
   for (const pk of pks) {
     const field = pk.column ? pk.column : pk.name
@@ -244,13 +280,13 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
       fks.push(field)
     }
   }
-  const ks = Object.keys(attrs)
   for (const obj of objs) {
     let i = 1
     const cols: string[] = []
     const values: string[] = []
     const args: any[] = []
     let isUpdate = true
+    let isVersion = false
     const o: any = obj
     for (const k of pks) {
       if (k.name) {
@@ -272,7 +308,8 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
       if (v != null && !attr.ignored && !attr.noinsert) {
         const field = attr.column ? attr.column : k
         cols.push(field)
-        if (attr.version) {
+        if (k === ver) {
+          isVersion = true
           values.push(`${1}`)
         } else {
           if (v === "") {
@@ -297,6 +334,14 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
         }
       }
     }
+    if (cols.length > 0 && ver && isVersion === false) {
+      const attr = attrs[ver]
+      if (attr) {
+        const field = attr.column ? attr.column : ver
+        cols.push(field)
+        values.push('1')
+      }
+    }
     if (isUpdate === false || pks.length === 0) {
       if (cols.length > 0) {
         if (pks.length === 0) {
@@ -311,7 +356,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
       }
     } else {
       const colSet: string[] = []
-      let ver: string | null = null
+      let version: string | null = null
       for (const k of ks) {
         const v = o[k]
         if (v !== undefined) {
@@ -320,7 +365,7 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
             const field = attr.column ? attr.column : k
             let x: string
             if (attr.version) {
-              ver = k
+              version = k
               x = `${table}.${field} + 1`
             } else {
               if (v === null) {
@@ -386,12 +431,12 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
             }
             colQuery.push(`${field}=${x}`)
           }
-          if (ver && ver.length > 0) {
-            const v = o[ver]
+          if (version && version.length > 0) {
+            const v = o[version]
             if (typeof v === "number" && !isNaN(v)) {
-              const attr = attrs[ver]
+              const attr = attrs[version]
               if (attr) {
-                const field = attr.column ? attr.column : ver
+                const field = attr.column ? attr.column : version
                 colQuery.push(`${field}=${v}`)
               }
             }

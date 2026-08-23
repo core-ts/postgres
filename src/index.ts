@@ -1,5 +1,5 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from "pg"
-import { buildToSave, buildToSaveBatch, param } from "./build"
+import { buildToSave, buildToSaveBatch, metadata, param } from "./build"
 import { Attribute, Attributes, DB, Statement, StringMap, Transaction } from "./metadata"
 
 export * from "./build"
@@ -276,33 +276,6 @@ export async function executeBatchWithClient(client: PoolClient, statements: Sta
     return c
   }
 }
-export function save<T>(client: Query | ((sql: string, args?: any[]) => Promise<number>), obj: T, table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSave(obj, table, attrs, buildParam)
-  if (!s.query) {
-    return Promise.resolve(0)
-  }
-  if (typeof client === "function") {
-    return client(s.query, s.params)
-  } else {
-    return execute(client, s.query, s.params)
-  }
-}
-export function saveBatch<T>(pool: Pool, objs: T[], table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSaveBatch(objs, table, attrs, buildParam)
-  if (s.length === 0) {
-    return Promise.resolve(0)
-  } else {
-    return executeBatch(pool, s)
-  }
-}
-export function saveBatchWithClient<T>(client: PoolClient, objs: T[], table: string, attrs: Attributes, buildParam?: (i: number) => string): Promise<number> {
-  const s = buildToSaveBatch(objs, table, attrs, buildParam)
-  if (s.length === 0) {
-    return Promise.resolve(0)
-  } else {
-    return executeBatchWithClientTx(client, s)
-  }
-}
 
 export function toArray(arr?: any[]): any[] {
   if (!arr || arr.length === 0) {
@@ -458,7 +431,9 @@ export function isEmpty(s: string): boolean {
   return !(s && s.length > 0)
 }
 // tslint:disable-next-line:max-classes-per-file
-export class PostgreSQLWriter<T> {
+export class SQLWriter<T> {
+  protected keys: Attribute[]
+  protected version?: string
   protected param?: (i: number) => string
   constructor(
     protected pool: Pool,
@@ -470,6 +445,9 @@ export class PostgreSQLWriter<T> {
   ) {
     this.write = this.write.bind(this)
     this.param = buildParam ? buildParam : param
+    const m = metadata(attributes)
+    this.keys = m.keys
+    this.version = m.version
   }
   write(obj: T): Promise<number> {
     if (obj == null) {
@@ -479,7 +457,7 @@ export class PostgreSQLWriter<T> {
     if (this.map) {
       obj2 = this.map(obj)
     }
-    const stmt = buildToSave(obj2, this.table, this.attributes, this.param)
+    const stmt = buildToSave(obj2, this.table, this.attributes, this.keys, this.version, this.param)
     if (stmt.query) {
       if (this.oneIfSuccess) {
         return execute(this.pool, stmt.query, stmt.params).then((ct) => (ct > 0 ? 1 : 0))
@@ -494,6 +472,8 @@ export class PostgreSQLWriter<T> {
 // tslint:disable-next-line:max-classes-per-file
 export class BufferedBatchWriter<T> {
   protected list: T[] = []
+  protected keys: Attribute[]
+  protected version?: string
   protected param?: (i: number) => string
   constructor(
     protected pool: Pool,
@@ -506,6 +486,9 @@ export class BufferedBatchWriter<T> {
     this.write = this.write.bind(this)
     this.flush = this.flush.bind(this)
     this.param = buildParam ? buildParam : param
+    const m = metadata(attributes)
+    this.keys = m.keys
+    this.version = m.version
   }
   write(obj: T): Promise<number> {
     if (!obj) {
@@ -529,7 +512,7 @@ export class BufferedBatchWriter<T> {
       return Promise.resolve(0)
     } else {
       const total = this.list.length
-      const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.param)
+      const stmt = buildToSaveBatch(this.list, this.table, this.attributes, this.keys, this.version, this.param)
       if (stmt.length > 0) {
         return executeBatch(this.pool, stmt).then((r) => {
           this.list = []
@@ -543,7 +526,9 @@ export class BufferedBatchWriter<T> {
   }
 }
 // tslint:disable-next-line:max-classes-per-file
-export class PostgreSQLBatchWriter<T> {
+export class BatchWriter<T> {
+  protected keys: Attribute[]
+  protected version?: string
   protected param?: (i: number) => string
   constructor(
     protected pool: Pool,
@@ -554,6 +539,9 @@ export class PostgreSQLBatchWriter<T> {
   ) {
     this.write = this.write.bind(this)
     this.param = buildParam ? buildParam : param
+    const m = metadata(attributes)
+    this.keys = m.keys
+    this.version = m.version
   }
   write(objs: T[]): Promise<number> {
     if (!objs || objs.length === 0) {
@@ -567,7 +555,7 @@ export class PostgreSQLBatchWriter<T> {
         list.push(obj2)
       }
     }
-    const stmts = buildToSaveBatch(list, this.table, this.attributes, this.param)
+    const stmts = buildToSaveBatch(list, this.table, this.attributes, this.keys, this.version, this.param)
     if (stmts.length > 0) {
       return executeBatch(this.pool, stmts)
     } else {
