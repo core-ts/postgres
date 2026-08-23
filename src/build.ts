@@ -71,7 +71,6 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, pks?: A
     for (const k of ks) {
       const attr = attrs[k]
       attr.name = k
-
       if (attr.key) {
         pks.push(attr)
       }
@@ -211,10 +210,9 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, pks?: A
         return { query: "", params: args }
       } else {
         const colQuery: string[] = []
-        for (const pk of pks) {
-          const na = pk.name ? pk.name : ""
-          const attr = attrs[na]
-          const field = attr.column ? attr.column : pk.name
+        for (const attr of pks) {
+          const field = attr.column ? attr.column : attr.name
+          const na = attr.name ? attr.name : ""
           const v = o[na]
           let x: string
           if (v === "") {
@@ -257,7 +255,6 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
   if (!buildParam) {
     buildParam = param
   }
-
   const sts: Statement[] = []
   if (!pks) {
     pks = []
@@ -265,7 +262,6 @@ export function buildToSaveBatch<T>(objs: T[], table: string, attrs: Attributes,
     for (const k of ks) {
       const attr = attrs[k]
       attr.name = k
-
       if (attr.key) {
         pks.push(attr)
       }
