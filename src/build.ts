@@ -137,11 +137,9 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
           let x: string
           if (attr.version) {
             ver = k
-            x = `${field} + 1`
+            x = `${table}.${field} + 1`
           } else {
-            if (v === null) {
-              x = "null"
-            } else if (v === "") {
+            if (v === "") {
               x = `''`
             } else if (typeof v === "number") {
               x = toString(v)
@@ -179,10 +177,10 @@ export function buildToSave<T>(obj: T, table: string, attrs: Attributes, buildPa
         return { query: q, params: args }
       }
     } else {
-      const colQuery: string[] = []
       if (colSet.length === 0) {
         return { query: "", params: args }
       } else {
+        const colQuery: string[] = []
         for (const pk of pks) {
           const na = pk.name ? pk.name : ""
           const attr = attrs[na]
