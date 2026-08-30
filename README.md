@@ -1,5 +1,621 @@
 # postgres-kit
 
+# PostgreSQL Kit
+
+A lightweight TypeScript PostgreSQL data-access toolkit built on top of [`pg`](https://www.npmjs.com/package/pg).
+
+It provides a small abstraction around PostgreSQL connections and transactions, plus metadata-driven insert/update builders, batch writers, result mapping, boolean conversion, and health checking.
+
+## Features
+
+* PostgreSQL connection pooling through `pg.Pool`
+* Simple `query`, `queryOne`, `execute`, `executeScalar`, and `count` APIs
+* Explicit transaction support
+* Transactional batch execution
+* Metadata-driven insert/update/upsert generation
+* Optimistic version support
+* Batch and buffered batch writers
+* Result field mapping
+* Boolean value conversion
+* PostgreSQL health checking
+* Custom PostgreSQL parameter builders
+
+## Installation
+
+Install PostgreSQL client support:
+
+```bash
+npm install pg
+```
+
+This library is written in TypeScript and expects a PostgreSQL client compatible with the `pg` package.
+
+## Basic usage
+
+```ts
+import { Pool } from "pg"
+import { PoolManager } from "./index"
+
+const pool = new Pool({
+  host: "localhost",
+  port: 5432,
+  database: "mydb",
+  user: "postgres",
+  password: "secret",
+})
+
+const db = new PoolManager(pool)
+
+const users = await db.query<User>(
+  "select id, name from users where active = $1",
+  [true],
+)
+
+console.log(users)
+```
+
+## Query API
+
+`PoolManager` implements the `DB` interface:
+
+```ts
+interface DB {
+  driver: string
+
+  param(i: number): string
+
+  execute(sql: string, args?: any[]): Promise<number>
+
+  executeBatch(
+    statements: Statement[],
+    requireFirstAffected?: boolean,
+  ): Promise<number>
+
+  query<T>(
+    sql: string,
+    args?: any[],
+    m?: StringMap,
+    bools?: Attribute[],
+  ): Promise<T[]>
+
+  queryOne<T>(
+    sql: string,
+    args?: any[],
+    m?: StringMap,
+    bools?: Attribute[],
+  ): Promise<T | null>
+
+  executeScalar<T>(
+    sql: string,
+    args?: any[],
+  ): Promise<T | null>
+
+  count(
+    sql: string,
+    args?: any[],
+  ): Promise<number>
+
+  beginTransaction(): Promise<Transaction>
+}
+```
+
+### `query`
+
+Returns all rows:
+
+```ts
+const users = await db.query<User>(
+  "select id, name from users",
+)
+```
+
+### `queryOne`
+
+Returns the first row or `null`:
+
+```ts
+const user = await db.queryOne<User>(
+  "select id, name from users where id = $1",
+  [id],
+)
+```
+
+### `execute`
+
+Executes a statement and returns the affected-row count:
+
+```ts
+const affected = await db.execute(
+  "update users set active = $1 where id = $2",
+  [true, id],
+)
+```
+
+### `executeScalar`
+
+Returns the first column of the first row:
+
+```ts
+const count = await db.executeScalar<number>(
+  "select count(*) from users",
+)
+```
+
+### `count`
+
+A convenience wrapper around `executeScalar`:
+
+```ts
+const count = await db.count(
+  "select count(*) from users where active = $1",
+  [true],
+)
+```
+
+## Transactions
+
+Use `beginTransaction()` when several operations must succeed or fail together.
+
+```ts
+const tx = await db.beginTransaction()
+
+try {
+  await tx.execute(
+    "update accounts set balance = balance - $1 where id = $2",
+    [100, sourceId],
+  )
+
+  await tx.execute(
+    "update accounts set balance = balance + $1 where id = $2",
+    [100, destinationId],
+  )
+
+  await tx.commit()
+} catch (err) {
+  await tx.rollback()
+  throw err
+}
+```
+
+`rollback()` releases the underlying pooled client even when the rollback query itself fails.
+
+## Metadata
+
+The library can describe object fields using `Attributes`:
+
+```ts
+const userAttributes: Attributes = {
+  id: {
+    key: true,
+    column: "id",
+  },
+
+  name: {
+    column: "user_name",
+  },
+
+  active: {
+    type: "boolean",
+  },
+
+  version: {
+    type: "integer",
+    version: true,
+  },
+}
+```
+
+Supported attribute options include:
+
+| Option     | Description                                                        |
+| ---------- | ------------------------------------------------------------------ |
+| `key`      | Marks a primary/key field used to identify existing records        |
+| `column`   | PostgreSQL column name when it differs from the object property    |
+| `type`     | Declares the logical data type                                     |
+| `default`  | Value used when the object field is `null`/`undefined` during save |
+| `noinsert` | Excludes the field from inserts                                    |
+| `noupdate` | Excludes the field from updates                                    |
+| `version`  | Marks the optimistic-lock/version field                            |
+| `ignored`  | Excludes the field from persistence                                |
+| `true`     | Database representation of boolean `true`                          |
+| `false`    | Database representation of boolean `false`                         |
+
+## Saving objects
+
+`buildToSave()` generates a PostgreSQL statement from an object and its metadata.
+
+For example:
+
+```ts
+const attributes: Attributes = {
+  id: { key: true },
+  name: {},
+  active: { type: "boolean" },
+  version: { type: "integer", version: true },
+}
+```
+
+A writer can then persist objects without manually creating the insert/update SQL.
+
+## `SQLWriter`
+
+`SQLWriter<T>` writes one object at a time.
+
+```ts
+const writer = new SQLWriter<User>(
+  pool,
+  "users",
+  userAttributes,
+)
+
+const affected = await writer.write({
+  id: 1,
+  name: "Alice",
+  active: true,
+  version: 1,
+})
+```
+
+The optional `map` function can transform the application object before saving:
+
+```ts
+const writer = new SQLWriter<User>(
+  pool,
+  "users",
+  userAttributes,
+  false,
+  (user) => ({
+    ...user,
+    name: user.name.trim(),
+  }),
+)
+```
+
+The `oneIfSuccess` option makes `write()` return `1` when at least one row is affected and `0` otherwise.
+
+## `BatchWriter`
+
+`BatchWriter<T>` accepts an array and executes the generated statements as a batch.
+
+```ts
+const writer = new BatchWriter<User>(
+  pool,
+  "users",
+  userAttributes,
+)
+
+const affected = await writer.write(users)
+```
+
+For multiple statements, the batch is executed inside a transaction.
+
+## `BufferedBatchWriter`
+
+`BufferedBatchWriter<T>` accumulates objects until the configured buffer size is reached.
+
+```ts
+const writer = new BufferedBatchWriter<User>(
+  pool,
+  "users",
+  userAttributes,
+  5000,
+)
+
+for (const user of users) {
+  await writer.write(user)
+}
+
+// Flush remaining objects
+await writer.flush()
+```
+
+This is useful when processing large streams or imports without creating one database operation per object.
+
+## Optimistic versioning
+
+An attribute can be marked as the version field:
+
+```ts
+const attributes: Attributes = {
+  id: {
+    key: true,
+  },
+
+  name: {},
+
+  version: {
+    type: "integer",
+    version: true,
+  },
+}
+```
+
+When updating an existing object, the version value is used as an optimistic-lock check and the stored version is incremented.
+
+Conceptually, the generated SQL follows this pattern:
+
+```sql
+update users
+set name = $1,
+    version = users.version + 1
+where id = $2
+  and version = 7
+```
+
+This allows applications to detect stale updates.
+
+## Result mapping
+
+`query()` can map PostgreSQL column names back to object property names.
+
+For example:
+
+```ts
+const map = {
+  user_name: "name",
+  created_at: "createdAt",
+}
+
+const users = await db.query<User>(
+  "select user_name, created_at from users",
+  [],
+  map,
+)
+```
+
+The result is mapped to:
+
+```ts
+{
+  name: "...",
+  createdAt: "..."
+}
+```
+
+## Boolean conversion
+
+Boolean fields can be described with metadata:
+
+```ts
+const attributes: Attributes = {
+  active: {
+    type: "boolean",
+  },
+}
+```
+
+`handleBool()` converts common PostgreSQL/string representations such as:
+
+```text
+true
+false
+1
+0
+t
+f
+y
+on
+```
+
+Custom true/false values are also supported:
+
+```ts
+const attributes: Attributes = {
+  active: {
+    type: "boolean",
+    true: 1,
+    false: 0,
+  },
+}
+```
+
+## Batch execution
+
+Statements can be executed directly:
+
+```ts
+const statements: Statement[] = [
+  {
+    query: "update users set active = $1 where id = $2",
+    params: [true, 1],
+  },
+  {
+    query: "update users set active = $1 where id = $2",
+    params: [true, 2],
+  },
+]
+
+const affected = await db.executeBatch(statements)
+```
+
+By default, multiple statements are executed inside one transaction.
+
+### `requireFirstAffected`
+
+When enabled, execution of subsequent statements requires the first statement to affect at least one row:
+
+```ts
+await db.executeBatch(statements, true)
+```
+
+This is useful for workflows where the first operation determines whether the remaining operations should proceed.
+
+## PostgreSQL parameters
+
+The default PostgreSQL parameter format is:
+
+```ts
+db.param(1) // "$1"
+db.param(2) // "$2"
+```
+
+The builder can also accept a custom parameter function:
+
+```ts
+const buildParam = (i: number) => `$${i}`
+```
+
+## Health checking
+
+`PostgreSQLChecker` can be used to expose PostgreSQL health status:
+
+```ts
+const checker = new PostgreSQLChecker(
+  pool,
+  "postgresql",
+  4500,
+)
+
+const result = await checker.check()
+```
+
+A successful check returns a structure similar to:
+
+```ts
+{
+  name: "postgresql",
+  status: "UP",
+  responseTime: 12
+}
+```
+
+A failed check returns:
+
+```ts
+{
+  name: "postgresql",
+  status: "DOWN",
+  error: "Connection timeout",
+  responseTime: 4501
+}
+```
+
+For Kubernetes probes running every 5 seconds, a timeout below the probe interval is recommended so the application has some margin before the next probe.
+
+## Error handling
+
+Duplicate-key PostgreSQL errors (`23505`) are annotated with:
+
+```ts
+error.error === "duplicate"
+```
+
+The original PostgreSQL error is still propagated.
+
+Example:
+
+```ts
+try {
+  await db.execute(
+    "insert into users(id) values($1)",
+    [1],
+  )
+} catch (err: any) {
+  if (err.error === "duplicate") {
+    // handle duplicate key
+  }
+
+  throw err
+}
+```
+
+## Important security note
+
+Values passed through `params` are sent to PostgreSQL as query parameters and should be used for dynamic data.
+
+Table names, column names, and other SQL identifiers are currently constructed directly by the SQL builder. They should therefore come only from trusted application metadata/configuration and **must not be populated directly from untrusted user input**.
+
+For example, do not do this with user-controlled input:
+
+```ts
+const table = request.query.table
+
+buildToSave(data, table, attributes)
+```
+
+Prefer a fixed allow-list of table names.
+
+## Resource lifecycle
+
+`PoolManager` uses a `pg.Pool`, while `PoolClientManager` represents a checked-out transaction client.
+
+Transactions should always follow this lifecycle:
+
+```text
+beginTransaction()
+      │
+      ├── execute/query/...
+      │
+      ├── commit()
+      │
+      └── rollback() on failure
+```
+
+Do not keep using a transaction object after it has been committed or rolled back.
+
+## API overview
+
+### Core classes
+
+```text
+PoolManager
+  ├── query()
+  ├── queryOne()
+  ├── execute()
+  ├── executeScalar()
+  ├── count()
+  ├── executeBatch()
+  └── beginTransaction()
+
+PoolClientManager
+  ├── query()
+  ├── queryOne()
+  ├── execute()
+  ├── executeScalar()
+  ├── count()
+  ├── executeBatch()
+  ├── commit()
+  └── rollback()
+
+SQLWriter<T>
+BatchWriter<T>
+BufferedBatchWriter<T>
+
+PostgreSQLChecker
+```
+
+### Core helper functions
+
+```text
+param()
+params()
+metadata()
+buildToSave()
+buildToSaveBatch()
+execute()
+query()
+queryOne()
+executeScalar()
+count()
+executeBatch()
+handleResults()
+handleBool()
+map()
+mapArray()
+buildFields()
+getFields()
+getMapField()
+```
+
+## License
+
+MIT
+
+## Status
+
+This is a small, low-level PostgreSQL utility layer intended to keep database access code concise while still allowing callers to work directly with PostgreSQL SQL.
+
+
 A lightweight PostgreSQL database toolkit for TypeScript and Node.js, built on top of [`pg`](https://www.npmjs.com/package/pg).
 
 `postgres-kit` provides a simple `Executor` abstraction for SQL execution, querying, transactions, scalar queries, batch execution, parameter handling, result mapping, and boolean conversion.
