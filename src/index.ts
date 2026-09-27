@@ -678,6 +678,7 @@ export class StringAdapter {
   }
 }
 export const StringRepository = StringAdapter
+export const StringService = StringAdapter
 
 export interface MinDB {
   param(i: number): string

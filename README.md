@@ -1,7 +1,5 @@
 # postgres-kit
 
-# PostgreSQL Kit
-
 A lightweight TypeScript PostgreSQL data-access toolkit built on top of [`pg`](https://www.npmjs.com/package/pg).
 
 It provides a small abstraction around PostgreSQL connections and transactions, plus metadata-driven insert/update builders, batch writers, result mapping, boolean conversion, and health checking.
